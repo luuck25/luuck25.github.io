@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dimensional Modelling — The Complete Retail Cheat-Sheet (Layman + Sample Data + Interview Hooks)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: { colors: {
+  blue100:'#0053e2', blue130:'#001e60', spark:'#ffc220', spark10:'#fff3d6',
+  ink:'#1a1a1a', subtle:'#f5f5f5', success:'#2a8703', green10:'#e6f4e0', warntx:'#995213', bluetint:'#eef3ff'
+}, fontFamily:{ sans:['system-ui','Segoe UI','Helvetica','Arial','sans-serif'] } } } }
+</script>
+<style>
+  html{scroll-behavior:smooth}
+  .lay{background:#fff3d6;border-left:4px solid #ffc220}
+  .data{background:#eef3ff;border-left:4px solid #0053e2}
+  .mem{background:#e6f4e0;border-left:4px solid #2a8703}
+  .card{box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  h2{scroll-margin-top:5rem}
+  h3{scroll-margin-top:5rem}
+  table.d{border-collapse:collapse;width:100%;margin-top:.5rem;font-size:.82rem}
+  table.d th,table.d td{border:1px solid #cdd7ea;padding:.35rem .55rem;text-align:left;vertical-align:top}
+  table.d th{background:#001e60;color:#fff;font-weight:600}
+  table.d tbody tr:nth-child(even){background:#f7f9ff}
+  .hl{background:#fff3d6;font-weight:600}
+  .lbl{display:inline-block;color:#fff;font-size:.68rem;font-weight:700;padding:.12rem .5rem;border-radius:.25rem;letter-spacing:.03em}
+  .lbl-lay{background:#995213}.lbl-data{background:#0053e2}.lbl-mem{background:#2a8703}
+  code{background:#eef1f5;padding:.05rem .3rem;border-radius:.2rem;font-size:.85em}
+  a.toclink:hover{color:#0053e2}
+</style>
+</head>
+<body class="font-sans text-ink bg-white leading-relaxed">
+
+<header class="bg-blue130 text-white">
+  <div class="max-w-6xl mx-auto px-6 py-12">
+    <p class="text-spark font-semibold tracking-wide uppercase text-sm">One-Stop Reference &mdash; Full Detail</p>
+    <h1 class="text-3xl md:text-4xl font-extrabold mt-2">Dimensional Modelling &mdash; <span class="text-spark">The Complete Retail Cheat-Sheet</span></h1>
+    <p class="mt-3 text-blue-100/90 max-w-3xl">All three Kimball talks (101 &middot; Intermediate &middot; Advanced) merged into <strong>one exhaustive page</strong>, reorganized by topic instead of by video &mdash; <strong>nothing left out</strong>. Every concept comes with a <strong>plain-English analogy</strong>, a <strong>worked retail example with sample data</strong>, and an <strong>interview memory hook</strong>.</p>
+    <div class="mt-5 flex flex-wrap gap-3 text-xs">
+      <span class="bg-white/10 rounded px-3 py-1"><span class="lbl lbl-lay">LAYMAN</span> everyday analogy</span>
+      <span class="bg-white/10 rounded px-3 py-1"><span class="lbl lbl-data">SAMPLE DATA</span> real retail tables</span>
+      <span class="bg-white/10 rounded px-3 py-1"><span class="lbl lbl-mem">REMEMBER</span> interview hook</span>
+    </div>
+  </div>
+</header>
+
+<div class="bg-spark10 border-y border-spark">
+  <div class="max-w-6xl mx-auto px-6 py-3 text-sm text-warntx">
+    <strong>Our running example:</strong> a supermarket chain, <em>"BargainMart"</em> &mdash; it sells products, in stores, to customers, over time. Same four dimensions power almost every example below.
+  </div>
+</div>
+
+<div class="max-w-6xl mx-auto px-6 py-10 grid md:grid-cols-[250px_1fr] gap-10">
+
+  <nav class="hidden md:block text-sm sticky top-6 self-start">
+    <p class="font-bold text-blue130 uppercase text-xs tracking-wider mb-3">Jump to</p>
+    <ol class="space-y-1.5 text-gray-600">
+      <li class="font-semibold text-blue130">FOUNDATIONS</li>
+      <li><a class="toclink" href="#big">1. The big picture</a></li>
+      <li><a class="toclink" href="#six">2. The Six Requirements</a></li>
+      <li><a class="toclink" href="#restaurant">3. The Restaurant analogy</a></li>
+      <li><a class="toclink" href="#etl">4. Staging &amp; ETL</a></li>
+      <li><a class="toclink" href="#inmon">5. Inmon vs Kimball</a></li>
+      <li><a class="toclink" href="#presentation">6. Presentation &amp; data marts</a></li>
+      <li class="font-semibold text-blue130 pt-1">THE MODEL</li>
+      <li><a class="toclink" href="#star">7. Star schema + 3 axioms</a></li>
+      <li><a class="toclink" href="#facts">8. FACTS (all types)</a></li>
+      <li><a class="toclink" href="#dims">9. DIMENSIONS (all types)</a></li>
+      <li><a class="toclink" href="#scd">10. SCDs (Type 0&ndash;6)</a></li>
+      <li class="font-semibold text-blue130 pt-1">PROCESS &amp; RECALL</li>
+      <li><a class="toclink" href="#design">11. The 4-step design</a></li>
+      <li><a class="toclink" href="#extra">12. Bonus gotchas</a></li>
+      <li><a class="toclink" href="#interview">13. Interview memory kit</a></li>
+    </ol>
+  </nav>
+
+  <main class="space-y-14 min-w-0">
+
+    <!-- ============ 1. BIG PICTURE ============ -->
+    <section id="big">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">1. The big picture</h2>
+      <p class="mt-4">Two kinds of systems: one to <strong>run</strong> the business, one to <strong>watch</strong> it.</p>
+      <table class="d">
+        <thead><tr><th></th><th>Operational (OLTP)</th><th>Data warehouse (analytics)</th></tr></thead>
+        <tbody>
+          <tr><td>Job</td><td>Run the business (ring up a sale)</td><td>Watch the business (spot trends)</td></tr>
+          <tr><td>Touches</td><td>One row at a time</td><td>Millions of rows at once</td></tr>
+          <tr><td>Queries</td><td>Predictable, repetitive</td><td>Ad-hoc, always changing</td></tr>
+          <tr><td>Scope</td><td>One business unit</td><td>The whole enterprise</td></tr>
+          <tr><td>Time horizon</td><td>Now</td><td>Trends over months/years</td></tr>
+          <tr><td>Design goal</td><td>Fast writes, no duplication (normalized)</td><td>Fast reads, easy to understand (denormalized)</td></tr>
+        </tbody>
+      </table>
+      <p class="mt-3 text-sm"><strong>Kimball's First Law:</strong> a database copy of your operational system is <em>not</em> a data warehouse &mdash; different users + different needs mean the design must be different. And <strong>DW = BI = DSS</strong> are just renamed eras of the same idea (Decision Support System &rarr; Data Warehousing &rarr; Business Intelligence).</p>
+      <div class="lay card mt-5 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm">The <strong>checkout till</strong> is great at ringing up your basket but useless for "which store sold the most ice cream last summer?" The <strong>manager's analytics dashboard</strong> is the opposite. Same numbers, totally different job &mdash; so they need different designs.</p>
+        <p class="mt-3 text-sm"><strong>The filing-cabinet story from the talk:</strong> an insurance company keeps every policy on paper, filed by surname. "What's my policy number?" &rarr; easy. "What's our total exposure by region?" &rarr; technically possible, but you'd have to pull <em>every</em> file out &mdash; a 3-month answer to a question the boss wants <em>now</em>. That gap <em>is</em> the OLTP-vs-warehouse difference.</p>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">REMEMBER</span></p>
+        <p class="mt-2 text-sm">OLTP = <strong>W</strong>rite-optimized to <strong>R</strong>un &nbsp;|&nbsp; DW = <strong>R</strong>ead-optimized to <strong>R</strong>eport. First Law: "a copy of the operational DB is NOT a warehouse."</p>
+      </div>
+    </section>
+
+    <!-- ============ 2. SIX REQUIREMENTS ============ -->
+    <section id="six">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">2. The Six Universal Requirements</h2>
+      <p class="mt-4">Kimball found nearly every organisation wants the same six things from a warehouse:</p>
+      <ol class="mt-3 space-y-2 list-decimal list-inside text-sm">
+        <li><strong>Accessibility</strong> &mdash; not just <em>available</em>, but understandable, intuitively named in business terms, and <strong>fast</strong>.</li>
+        <li><strong>Consistency</strong> &mdash; one enterprise-wide definition of <em>customer</em>, <em>product</em>, etc.</li>
+        <li><strong>Adaptability</strong> &mdash; decisions change by nature, so the DW <em>will</em> change; build it resilient.</li>
+        <li><strong>Security</strong> &mdash; aggregated data is sensitive even when single rows aren't.</li>
+        <li><strong>Decision support</strong> &mdash; the real output is the decisions made afterwards.</li>
+        <li><strong>Acceptance</strong> &mdash; if users won't use it, it failed (rule of thumb: dead within ~6 months = failure).</li>
+      </ol>
+      <div class="lay card mt-5 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <ul class="mt-2 text-sm space-y-1 list-disc list-inside">
+          <li><strong>Accessibility:</strong> handing a user 400 cryptic tables (<code>CUST_MSTR_TBL_02</code>) is like giving someone a library with no signs and books in a language they don't read. Available &ne; usable.</li>
+          <li><strong>Consistency:</strong> Sales says "we sold 10,000 units," Delivery says "we shipped 11,000" &mdash; because one counts by <em>billing address</em> and the other by <em>delivery address</em>. Two "truths" drive managers nuts.</li>
+          <li><strong>Adaptability:</strong> the questions people ask <em>always</em> change &mdash; build it like LEGO you can rearrange, not a concrete wall.</li>
+          <li><strong>Security:</strong> your payslip isn't secret to you, but hand someone <em>everyone's</em> payslips and they can predict the whole company's payroll. In the talk: a full General Ledger feed let people predict company profit before it hit the stock market.</li>
+          <li><strong>Decision support:</strong> a beautiful dashboard nobody acts on is a screensaver. The point is better decisions.</li>
+          <li><strong>Acceptance:</strong> people <em>must</em> use the checkout, but nobody <em>has</em> to use a report &mdash; build a bad one and they'll just guess on gut instead.</li>
+        </ul>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">REMEMBER</span></p>
+        <p class="mt-2 text-sm">Mnemonic <strong>"A-C-A-S-D-A"</strong> &rarr; <strong>A</strong>ccessible, <strong>C</strong>onsistent, <strong>A</strong>daptable, <strong>S</strong>ecure, <strong>D</strong>ecision-support, <strong>A</strong>ccepted. (Two A's bookend it.)</p>
+      </div>
+    </section>
+
+    <!-- ============ 3. RESTAURANT ============ -->
+    <section id="restaurant">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">3. Structure &mdash; The Restaurant Analogy</h2>
+      <p class="mt-4">Kimball's favourite mental model for a warehouse's three parts:</p>
+      <div class="grid sm:grid-cols-3 gap-4 mt-4">
+        <div class="card rounded p-4 bg-subtle"><p class="font-bold text-blue100">Suppliers</p><p class="text-sm mt-1"><strong>Source systems</strong> deliver raw ingredients (raw data).</p></div>
+        <div class="card rounded p-4 bg-subtle"><p class="font-bold text-blue100">Kitchen</p><p class="text-sm mt-1"><strong>Staging area</strong> turns raw ingredients into finished meals (ETL).</p></div>
+        <div class="card rounded p-4 bg-subtle"><p class="font-bold text-blue100">Dining room</p><p class="text-sm mt-1"><strong>Presentation area</strong> where users are served polished data.</p></div>
+      </div>
+      <div class="lay card mt-5 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm">Diners <strong>never walk into the kitchen</strong> &mdash; it's full of sharp knives and hot pans (messy raw data, half-finished transformations). And waiters don't cook. In the same way, business users only ever see the tidy "dining room" (reports/dashboards); they never touch the raw feeds or the ETL mess behind the swinging doors.</p>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">REMEMBER</span></p>
+        <p class="mt-2 text-sm"><strong>Sources &rarr; Staging &rarr; Presentation</strong> = <strong>Suppliers &rarr; Kitchen &rarr; Dining room</strong>. Users only ever see the dining room.</p>
+      </div>
+    </section>
+
+    <!-- ============ 4. ETL ============ -->
+    <section id="etl">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">4. Staging Area &amp; ETL (Extract &rarr; Transform &rarr; Load)</h2>
+      <p class="mt-4">The staging area = <em>everything</em> between acquiring source data and presenting it: raw acquired data, the ETL software, and any storage not shown to users.</p>
+      <ul class="mt-3 space-y-2 list-disc list-inside text-sm">
+        <li><strong>Extract &mdash; keep it dead simple</strong> (<code>SELECT * FROM table</code>). Source systems don't care about you; do zero logic here or you'll be blamed when their nightly batch runs late.</li>
+        <li><strong>Transform &mdash; do all the work here:</strong> cleansing (e.g. address parsing), combining sources, de-duplication, and assigning <strong>surrogate ("warehouse") keys</strong> &mdash; your own numeric IDs you never trust the source to keep stable.</li>
+        <li><strong>Load &mdash; bulk overnight</strong> (drop indexes &rarr; parallel load &rarr; rebuild &rarr; notify users) <em>or</em> <strong>real-time</strong> (mimic the source: commit transactionally-consistent units, use parallelism, exploit the 24-hr window vs a tight overnight window).</li>
+      </ul>
+      <div class="lay card mt-5 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <ul class="mt-2 text-sm space-y-1 list-disc list-inside">
+          <li><strong>Extract simply:</strong> when you collect groceries from the shop, just <em>take the bags home</em> &mdash; don't start chopping onions in the car park. Chop (transform) in your own kitchen.</li>
+          <li><strong>Surrogate keys:</strong> like giving every new employee an internal staff number instead of relying on their phone number &mdash; because phone numbers change, get reused, and aren't yours to control.</li>
+          <li><strong>Real-time consistency:</strong> serve a burger <em>with</em> its bun and fries together &mdash; never send out half an order. If you load an invoice header without its line items, users briefly see nonsense ("putting Humpty back together").</li>
+        </ul>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">REMEMBER</span></p>
+        <p class="mt-2 text-sm"><strong>E</strong>xtract simply, <strong>T</strong>ransform in the kitchen, <strong>L</strong>oad in bulk or real-time. Never transform during extract. Always mint your own surrogate keys.</p>
+      </div>
+    </section>
+
+    <!-- ============ 5. INMON VS KIMBALL ============ -->
+    <section id="inmon">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">5. Inmon vs Kimball &mdash; should staging be normalized?</h2>
+      <ul class="mt-4 space-y-2 list-disc list-inside text-sm">
+        <li><strong>Bill Inmon</strong> (Kimball's "mortal enemy"): build one big <strong>normalized enterprise model</strong> first.</li>
+        <li><strong>Kimball (v1):</strong> go straight to dimensional &mdash; no normalized layer.</li>
+        <li><strong>Popular hybrid:</strong> acquire &rarr; hidden normalized layer &rarr; dimensional models for users.</li>
+        <li><strong>Kimball's minimum bar:</strong> persist raw data in a <em>readily accessible</em> format (flat file, XML, or DB tables) and <strong>never delete it</strong>. Ross prefers relational tables (most recoverable), and endorses multiple persistence points so you can fix transformation errors without re-hitting the source.</li>
+      </ul>
+      <div class="lay card mt-5 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm">Think of <strong>keeping your receipts</strong>. Kimball just says: keep them somewhere you can actually re-read them later (a labelled shoebox), and never throw them out &mdash; so if you later mis-categorise a purchase you can redo it from the receipt <em>without</em> going back to the shop. Inmon says: type every receipt into one giant master ledger first. The common compromise: keep the shoebox <em>and</em> a tidy ledger &mdash; but only ever show guests the final summary.</p>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">REMEMBER</span></p>
+        <p class="mt-2 text-sm"><strong>Inmon = top-down normalized enterprise DW</strong> (then marts). <strong>Kimball = bottom-up dimensional marts</strong> (bus of conformed dims). Most shops run a hybrid. Always keep the raw data.</p>
+      </div>
+    </section>
+
+    <!-- ============ 6. PRESENTATION ============ -->
+    <section id="presentation">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">6. Presentation Area &amp; Data Marts</h2>
+      <ul class="mt-4 space-y-2 list-disc list-inside text-sm">
+        <li>Users see <strong>only</strong> dimensional data &mdash; never the kitchen.</li>
+        <li>"Data mart" is overloaded: it can mean a dependent side-system, a mini-DW for one unit, or (Kimball's usage) essentially <strong>a star schema</strong> (one fact + its dimensions).</li>
+        <li>Organise by <strong>business process, not department</strong> (processes cross departments): sales, deliveries, fulfillment, commissions, profitability.</li>
+      </ul>
+      <div class="lay card mt-5 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm">A data mart is a <strong>themed buffet station</strong>: one for "sales," one for "deliveries." A department is <em>who cooks</em>; a business process is <em>the meal being served</em>. "Fulfillment" needs ingredients from both the orders team <em>and</em> the delivery team &mdash; so you organise the station around the meal, not the kitchen staff.</p>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">REMEMBER</span></p>
+        <p class="mt-2 text-sm">Model by <strong>business process</strong>, not department. Conformed dimensions are the "bus" that connects all the marts so you can drill across them.</p>
+      </div>
+    </section>
+
+    <!-- ============ 7. STAR SCHEMA + AXIOMS ============ -->
+    <section id="star">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">7. The star schema + the Three Axioms</h2>
+      <p class="mt-4">From the CEO's throwaway line: <em>"We sell <span class="text-blue100 font-semibold">products</span> in various <span class="text-blue100 font-semibold">markets</span> and measure our <span class="text-success font-semibold">performance</span> over <span class="text-blue100 font-semibold">time</span>."</em> That gives you a <strong>cube</strong> &mdash; facts in the cells, dimensions on the axes. Physically it becomes a <strong>star schema</strong>: one central <strong>fact table</strong> (the numbers) surrounded by <strong>dimension tables</strong> (the descriptions).</p>
+
+      <p class="mt-4 font-semibold text-blue130">Kimball's Three Axioms of the presentation layer:</p>
+      <ol class="mt-2 space-y-1 list-decimal list-inside text-sm">
+        <li><strong>Dimensionally modelled</strong> &mdash; facts + dimensions, not normalized tables.</li>
+        <li><strong>Detailed atomic facts</strong> &mdash; keep the lowest grain; build aggregates only for speed.</li>
+        <li><strong>Conformed</strong> dimensions &amp; facts &mdash; same name &rArr; same meaning; same meaning &rArr; same name.</li>
+      </ol>
+
+      <div class="data card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; BargainMart sales star</p>
+        <p class="mt-3 text-sm font-semibold">FACT_SALES (narrow, millions of rows &mdash; keys + numbers only)</p>
+        <table class="d">
+          <thead><tr><th>sale_key (PK)</th><th>date_key</th><th>product_key</th><th>store_key</th><th>customer_key</th><th>qty</th><th>amount</th></tr></thead>
+          <tbody>
+            <tr><td>1001</td><td>20240315</td><td>77</td><td>5</td><td>1201</td><td>2</td><td>7.00</td></tr>
+            <tr><td>1002</td><td>20240315</td><td>81</td><td>5</td><td>1201</td><td>1</td><td>3.50</td></tr>
+            <tr><td>1003</td><td>20240316</td><td>77</td><td>9</td><td>1450</td><td>6</td><td>21.00</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-3 text-sm font-semibold">DIM_PRODUCT (wide, few rows &mdash; lots of descriptions, with surrogate + natural key)</p>
+        <table class="d">
+          <thead><tr><th>product_key (surrogate PK)</th><th>sku (natural key)</th><th>name</th><th>brand</th><th>category</th><th>package_size</th></tr></thead>
+          <tbody>
+            <tr><td>77</td><td>SKU-BAN-01</td><td>Bananas loose</td><td>FarmFresh</td><td>Produce</td><td>per kg</td></tr>
+            <tr><td>81</td><td>SKU-MLK-2L</td><td>Milk 2L</td><td>DairyCo</td><td>Chilled</td><td>2 litre</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="mt-4 text-sm"><strong>Anatomy recap.</strong> A <strong>fact table</strong> holds only: a surrogate primary key (warehouse-assigned, never shown on screen), foreign keys to each dimension, and measures (numeric, usually additive) &mdash; plus rare exceptions (degenerate dims, drill-through attrs). A <strong>dimension table</strong> holds: a surrogate key, the source natural key, and lots of descriptive/hierarchical attributes for roll-up &amp; drill-down.</p>
+
+      <p class="mt-3 text-sm"><strong>The Big Four dimensions</strong> to hunt for on day one: <strong>Customer, Location (store), Product, Time (date).</strong></p>
+
+      <p class="mt-3 text-sm"><strong>Golden rule &mdash; NEVER snowflake.</strong> Don't split <em>brand</em> and <em>category</em> into their own sub-tables. It looks "tidier" (your OLTP training screaming) but it hurts the two things a star exists for: <strong>performance and understandability</strong>. Denormalize deliberately.</p>
+
+      <div class="lay card mt-5 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm"><strong>Cube:</strong> picture a Rubik's cube &mdash; one axis products, one stores, one months; each cell holds one answer ("bananas, store 5, March = $200"). <strong>Fact vs dimension:</strong> the fact table is the <em>till roll</em> (long, skinny "what happened"); dimensions are the <em>reference booklets</em> (short but packed with detail). <strong>Snowflaking</strong> is a recipe that says "for flour see Booklet 3; for sugar see Booklet 7" &mdash; a star prints it all on one page.</p>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">REMEMBER</span></p>
+        <p class="mt-2 text-sm"><strong>Fact = skinny &amp; tall</strong> (keys + measures). <strong>Dimension = fat &amp; short</strong>. <strong>Star good, snowflake bad.</strong> Axioms = <strong>"Dimensional, Atomic, Conformed"</strong> (D-A-C). Atomic facts enable <strong>drill-through</strong>; conformed dims enable <strong>drill-across</strong>.</p>
+      </div>
+    </section>
+
+    <!-- ============ 8. FACTS ============ -->
+    <section id="facts">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">8. FACTS &mdash; every type in one place</h2>
+      <p class="mt-4">A fact = one row per <strong>measurement event</strong>, at a fixed <strong>grain</strong>. There are four flavours:</p>
+
+      <h3 class="text-lg font-bold text-blue100 mt-6">8a. Transaction fact</h3>
+      <p class="text-sm mt-1">One row per discrete event (a sale scan). The bread-and-butter fact. Fully additive; insert-only.</p>
+
+      <h3 class="text-lg font-bold text-blue100 mt-6">8b. Periodic snapshot fact</h3>
+      <p class="text-sm mt-1">One row per entity per <em>time period</em> &mdash; measures the state at intervals, even when nothing "happened."</p>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; month-end loyalty points balance</p>
+        <table class="d">
+          <thead><tr><th>customer_key</th><th>month</th><th>points_balance</th></tr></thead>
+          <tbody>
+            <tr><td>1201</td><td>2024-01</td><td>500</td></tr>
+            <tr><td>1201</td><td>2024-02</td><td>650</td></tr>
+            <tr><td>1201</td><td>2024-03</td><td>400</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">You can't SUM these balances across months (500+650+400 = meaningless). See "Additivity" below.</p>
+      </div>
+
+      <h3 class="text-lg font-bold text-blue100 mt-6">8c. Accumulating snapshot fact</h3>
+      <p class="text-sm mt-1">One row per <em>process instance</em> with a lifecycle &mdash; you <strong>update</strong> the row as milestones happen. Lots of date columns.</p>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; online grocery order lifecycle</p>
+        <table class="d">
+          <thead><tr><th>order_no</th><th>ordered_date</th><th>picked_date</th><th>shipped_date</th><th>delivered_date</th><th>order_total</th></tr></thead>
+          <tbody>
+            <tr><td>ORD-900</td><td>2024-03-01</td><td>2024-03-01</td><td>2024-03-02</td><td class="hl">(null)</td><td>84.20</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">Same row gets updated when it's delivered &mdash; then you can measure "days from order to doorstep." You can also build a separate <em>transaction</em> fact for each state-change event &mdash; two facts, same process, different questions.</p>
+      </div>
+
+      <h3 class="text-lg font-bold text-blue100 mt-6">8d. Factless / coverage fact</h3>
+      <p class="text-sm mt-1">Just dimension keys, <strong>no measures</strong> &mdash; records that a relationship <em>existed</em>, so you can report on what <strong>didn't</strong> happen.</p>
+
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">WHY THEY'RE NEEDED</span></p>
+        <p class="mt-2 text-sm">The other three fact types (Transaction, Periodic, Accumulating) all record things that <strong>happened</strong> &mdash; a sale, a balance, a shipment. But a huge class of business questions is about the <strong>absence</strong> of an event:</p>
+        <ul class="mt-2 text-sm space-y-1 list-disc list-inside">
+          <li>Which products were on the shelf but <strong>never sold</strong>?</li>
+          <li>Which vehicles sat in the depot and were <strong>never rented</strong>?</li>
+          <li>Which customers were <strong>eligible</strong> for a promotion but <strong>didn't redeem</strong> it?</li>
+          <li>Which students were <strong>enrolled</strong> in a class but <strong>didn't attend</strong>?</li>
+        </ul>
+        <p class="mt-2 text-sm">You <strong>cannot</strong> answer these from an events fact alone &mdash; if nothing happened, there's simply <em>no row</em> to query. The fix is to record the full <strong>universe of possibilities</strong> (the "coverage") in a fact that has only dimension keys and no measures. Then "what didn't happen" = <strong>(everything that was possible) &minus; (everything that happened)</strong>. That subtraction is the whole point.</p>
+        <p class="mt-2 text-xs text-gray-600">Two common shapes: (1) <strong>coverage / eligibility</strong> facts (what <em>could</em> have happened), and (2) <strong>event</strong> factless facts where the event itself has no number (e.g. "student attended class" &mdash; there's nothing to measure, you just count rows).</p>
+      </div>
+
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA (retail)</span> &mdash; which products were on-shelf vs actually sold</p>
+        <table class="d">
+          <thead><tr><th>date_key</th><th>store_key</th><th>product_key</th><th class="hl">(no measure)</th></tr></thead>
+          <tbody>
+            <tr><td>20240315</td><td>5</td><td>77 (bananas)</td><td>on shelf</td></tr>
+            <tr><td>20240315</td><td>5</td><td>81 (milk)</td><td>on shelf</td></tr>
+            <tr><td>20240315</td><td>5</td><td>95 (kale)</td><td>on shelf</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">Bananas &amp; milk appear in FACT_SALES; kale doesn't &rarr; kale was available but <strong>never sold</strong> that day. Impossible to spot without a factless fact.</p>
+      </div>
+
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA (vehicle rentals &mdash; the classic Kimball example)</span></p>
+        <p class="mt-2 text-sm">A car-rental company has a normal <strong>rental transaction fact</strong> &mdash; but it only records vehicles that <em>were</em> rented. Ask "how many vehicles sat idle at Depot 9 on 22 Mar?" and it can't answer &mdash; idle cars generate no rows. So you add a <strong>vehicle-availability factless fact</strong>: one row per vehicle, per day, per depot that the car was <em>available</em> &mdash; no measures, just the fact that it <em>could</em> have been rented.</p>
+
+        <p class="mt-3 text-sm font-semibold">FACT_VEHICLE_AVAILABILITY (factless / coverage &mdash; the full universe)</p>
+        <table class="d">
+          <thead><tr><th>date_key</th><th>depot_key</th><th>vehicle_key</th><th class="hl">(no measure)</th></tr></thead>
+          <tbody>
+            <tr><td>20240322</td><td>9</td><td>V-1</td><td>available</td></tr>
+            <tr><td>20240322</td><td>9</td><td>V-2</td><td>available</td></tr>
+            <tr><td>20240322</td><td>9</td><td>V-3</td><td>available</td></tr>
+            <tr><td>20240322</td><td>9</td><td>V-4</td><td>available</td></tr>
+          </tbody>
+        </table>
+
+        <p class="mt-3 text-sm font-semibold">FACT_RENTAL (transaction fact &mdash; what actually happened)</p>
+        <table class="d">
+          <thead><tr><th>date_key</th><th>depot_key</th><th>vehicle_key</th><th>customer_key</th><th>rental_amount</th></tr></thead>
+          <tbody>
+            <tr><td>20240322</td><td>9</td><td>V-1</td><td>C-88</td><td>45.00</td></tr>
+            <tr><td>20240322</td><td>9</td><td>V-2</td><td>C-90</td><td>60.00</td></tr>
+            <tr><td>20240322</td><td>9</td><td>V-4</td><td>C-14</td><td>55.00</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">On 22 Mar at Depot 9, four cars were available (V-1..V-4) but only three were rented (V-1, V-2, V-4). Subtract the rentals from the availability &rarr; <strong>V-3 was idle all day</strong> (lost revenue!). Without the availability factless fact, V-3 simply wouldn't exist anywhere to be found. You can then also compute a <strong>utilization rate</strong> = rentals &divide; availability = 3/4 = <strong>75%</strong> for that depot-day.</p>
+      </div>
+
+      <div class="lay card mt-5 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <ul class="mt-2 text-sm space-y-1 list-disc list-inside">
+          <li><strong>Transaction</strong> = individual till receipts.</li>
+          <li><strong>Periodic snapshot</strong> = your monthly bank statement balance.</li>
+          <li><strong>Accumulating snapshot</strong> = a parcel-tracking page you refresh as it moves.</li>
+          <li><strong>Factless</strong> = a class attendance sheet, or a rental depot's "cars on the lot today" list &mdash; you spot the no-shows / idle cars by seeing who's <em>on the list but missing from the action</em>.</li>
+        </ul>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">REMEMBER</span></p>
+        <p class="mt-2 text-sm">Fact types = <strong>"TPAF"</strong> &rarr; <strong>T</strong>ransaction, <strong>P</strong>eriodic snapshot, <strong>A</strong>ccumulating snapshot, <strong>F</strong>actless. Trick: <em>Transaction inserts, Accumulating updates, Periodic repeats, Factless has no number.</em></p>
+      </div>
+
+      <!-- additivity -->
+      <h3 id="additivity" class="text-lg font-bold text-blue100 mt-8">8e. Additivity (how you're allowed to SUM)</h3>
+      <table class="d">
+        <thead><tr><th>Type</th><th>Meaning</th><th>Retail example</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Additive</strong></td><td>Sum across ALL dimensions</td><td>Sales amount, units sold</td></tr>
+          <tr><td><strong>Semi-additive</strong></td><td>Sum across some, NOT across time</td><td>Loyalty balance, stock-on-hand (use avg/last over time)</td></tr>
+          <tr><td><strong>Non-additive</strong></td><td>Can't sum at all</td><td>Unit price, margin % (average or recompute instead)</td></tr>
+        </tbody>
+      </table>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">REMEMBER</span></p>
+        <p class="mt-2 text-sm"><strong>"Amounts &amp; counts = full; balances &amp; levels = semi; ratios &amp; prices = non."</strong> If it's a <em>snapshot balance</em>, never SUM it over time &mdash; average or take last.</p>
+      </div>
+
+      <!-- degenerate + master detail -->
+      <h3 id="degenerate" class="text-lg font-bold text-blue100 mt-8">8f. Degenerate dimensions, drill-through bloat &amp; master-detail</h3>
+      <p class="text-sm mt-1">A <strong>degenerate dimension</strong> is a dimension attribute that has <strong>no attributes of its own</strong>, so it doesn't earn a separate dimension table &mdash; it just sits <em>inside the fact table</em>. The classic is the <strong>order/invoice/receipt number</strong>. After you've pushed product, customer, store and date out into their own dimensions, that order number is left over &mdash; there's nothing else to describe about it (no "order colour" or "order category"), so building a one-column DIM_ORDER would be pointless. It stays in the fact as a plain column. The name is a joke: it's a "dimension" that has degenerated down to just its key.</p>
+
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; <code>order_no</code> living inside FACT_SALES as a degenerate dimension</p>
+        <table class="d">
+          <thead><tr><th>sale_key</th><th class="hl">order_no (degenerate dim)</th><th>date_key</th><th>product_key</th><th>customer_key</th><th>qty</th><th>amount</th></tr></thead>
+          <tbody>
+            <tr><td>1001</td><td class="hl">ORD-900</td><td>20240315</td><td>77 (bananas)</td><td>1201</td><td>2</td><td>7.00</td></tr>
+            <tr><td>1002</td><td class="hl">ORD-900</td><td>20240315</td><td>81 (milk)</td><td>1201</td><td>1</td><td>3.50</td></tr>
+            <tr><td>1003</td><td class="hl">ORD-901</td><td>20240315</td><td>77 (bananas)</td><td>1450</td><td>6</td><td>21.00</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">No DIM_ORDER table exists &mdash; <code>order_no</code> is just a column. Note ORD-900 spans two rows (two items in one basket).</p>
+      </div>
+
+      <p class="text-sm mt-3 font-semibold text-blue130">What it's actually used for:</p>
+      <ul class="mt-1 space-y-1 list-disc list-inside text-sm">
+        <li><strong>Drill-through (the big one):</strong> you roll <em>up</em> to "Produce sales in March = $50,000," then a manager asks "show me the actual transactions behind that." You drill down to individual fact rows &mdash; and the <code>order_no</code> is what lets you display and group those rows back into real baskets/receipts a human recognises. Without it, the atomic rows are anonymous.</li>
+        <li><strong>Count-distinct:</strong> "how many <em>orders</em> did we take today?" = <code>COUNT(DISTINCT order_no)</code>. The fact has one row per <em>line item</em>, so counting rows would over-count &mdash; the degenerate dim gives you the true basket/order count. Same trick for average basket size = total amount &divide; distinct orders.</li>
+        <li><strong>Drill-across / stitching facts:</strong> if two facts share the same <code>order_no</code> (e.g. an order-header fact and an order-line fact, or a shipments fact), you can join them on it to follow one order end-to-end.</li>
+      </ul>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; drill path using the degenerate dimension</p>
+        <table class="d">
+          <thead><tr><th>Level</th><th>Query</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td>Roll-up</td><td>Sales by category, March</td><td>Produce = $50,000</td></tr>
+            <tr><td>Drill-down</td><td>&hellip; expand Produce &rarr; distinct orders</td><td>1,200 orders</td></tr>
+            <tr><td>Drill-through</td><td>&hellip; open order <span class="hl">ORD-900</span></td><td>Bananas $7.00 + Milk $3.50 = $10.50 basket</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="text-sm mt-3"><strong>Don't fatten facts:</strong> extra drill-through-only attributes (client ref, free-text comments, millisecond timestamps) make rows fat, and since a query reads the <em>whole</em> row, fatter rows = slower analytics. Allow one or two, migrate the rest to a side table you only join for the few hundred rows you actually drill into.</p>
+      <p class="text-sm mt-2"><strong>Master-detail</strong> (order + order-lines): roll everything <em>down</em> to the line grain. An order-level discount can't be repeated on every line (double-count!) &mdash; <strong>pro-rate</strong> it across lines, or keep it in a separate order-level fact and join via the order-number degenerate dimension.</p>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; a $6 basket coupon pro-rated across 3 items</p>
+        <table class="d">
+          <thead><tr><th>order_no (degenerate)</th><th>product</th><th>line_total</th><th>% of basket</th><th>allocated_discount</th></tr></thead>
+          <tbody>
+            <tr><td>ORD-900</td><td>Bananas</td><td>10.00</td><td>10%</td><td>0.60</td></tr>
+            <tr><td>ORD-900</td><td>Milk</td><td>20.00</td><td>20%</td><td>1.20</td></tr>
+            <tr><td>ORD-900</td><td>Steak</td><td>70.00</td><td>70%</td><td>4.20</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">0.60 + 1.20 + 4.20 = $6.00 exactly. Repeating "$6" on all three lines would wrongly total $18.</p>
+      </div>
+      <div class="lay card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm">The order number is like the <strong>reference on your receipt</strong> &mdash; you'd never chart "sales by receipt number," but it's exactly what you quote to pull up that one transaction, and it's what groups your loose items back into "one shop." And a "$6 off your whole basket" coupon can't be stamped "$6 off" on every item &mdash; you split it fairly. Stuffing long comment fields into the main fact is like making everyone lug the entire instruction manual just to read the price tag.</p>
+      </div>
+    </section>
+
+    <!-- ============ 9. DIMENSIONS ============ -->
+    <section id="dims">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">9. DIMENSIONS &mdash; every special case in one place</h2>
+      <p class="mt-4">A dimension = the <em>who / what / where / when</em> that describes a fact. Before the special shapes, one base rule matters most: <strong>conformed dimensions</strong>.</p>
+
+      <h3 class="text-lg font-bold text-blue100 mt-6">9-base. What "conformed" actually means</h3>
+      <p class="text-sm mt-1">A <strong>conformed dimension</strong> is a <em>single, shared dimension table used identically by more than one fact table</em>. The rule of thumb: <strong>same name &rArr; same meaning, and same meaning &rArr; same name.</strong> If both your Sales fact and your Returns fact point at the <em>exact same</em> DIM_CUSTOMER and DIM_DATE, those dimensions are "conformed."</p>
+      <p class="text-sm mt-2"><strong>Why it matters:</strong> conformed dimensions are what let you <strong>drill across</strong> &mdash; combine numbers from two <em>different</em> facts in one report. If Sales used its own "customer" and Returns used a <em>different</em> "customer" definition, you could never trust a report comparing them &mdash; apples to oranges. Conformed dimensions are the shared backbone (Kimball calls it the <em>bus</em>) that ties all your separate star schemas into one coherent warehouse.</p>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; one shared DIM_CUSTOMER feeding two facts &rarr; drill-across works</p>
+        <table class="d">
+          <thead><tr><th>DIM_CUSTOMER (shared)</th><th>name</th><th>region</th></tr></thead>
+          <tbody><tr><td>customer_key 1201</td><td>Kim</td><td>East</td></tr></tbody>
+        </table>
+        <table class="d mt-2">
+          <thead><tr><th>FACT_SALES</th><th>customer_key</th><th>sales_amt</th></tr></thead>
+          <tbody><tr><td>row</td><td>1201</td><td>500.00</td></tr></tbody>
+        </table>
+        <table class="d mt-2">
+          <thead><tr><th>FACT_RETURNS</th><th>customer_key</th><th>return_amt</th></tr></thead>
+          <tbody><tr><td>row</td><td>1201</td><td>40.00</td></tr></tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">Both facts use the <em>same</em> customer_key 1201 &rarr; you can build one report: "Kim: $500 sales, $40 returns, net $460." That combined view is <strong>drill-across</strong>, and it's only possible because DIM_CUSTOMER is conformed.</p>
+      </div>
+      <div class="lay card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm">Conformed = <strong>everyone in the company uses the same dictionary</strong>. If "Region = South" means the exact same set of stores to the Sales team, the Returns team and Marketing, you can safely put their numbers on one page. If each team quietly has its own idea of "South," every cross-team report is a lie. It's the "a cup means 250ml to everybody" rule.</p>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">REMEMBER</span></p>
+        <p class="mt-2 text-sm"><strong>Conformed dimension = shared &amp; identical across facts &rarr; enables drill-across.</strong> Same name = same meaning. It's the "bus" that connects all your star schemas.</p>
+      </div>
+
+      <p class="mt-6 text-sm">Beyond the basics, dimensions come in special shapes:</p>
+
+      <!-- date -->
+      <h3 id="date" class="text-lg font-bold text-blue100 mt-6">9a. The Date dimension (you always build one)</h3>
+      <p class="text-sm mt-1">Store dates as a <em>table</em>, not raw dates, pre-populated for ~100 years past &amp; future (only a few hundred thousand tiny rows). Why? (1) You can't index every date-function on a billion-row fact &mdash; instead filter the small date table then use its keys against one fact index. (2) Things like <strong>public holidays</strong> or fiscal 4-4-5 weeks can't be derived by any formula.</p>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; DIM_DATE</p>
+        <table class="d">
+          <thead><tr><th>date_key</th><th>date</th><th>day_name</th><th>month</th><th>quarter</th><th>is_weekend</th><th>is_holiday</th><th>fiscal_wk</th></tr></thead>
+          <tbody>
+            <tr><td>20241225</td><td>2024-12-25</td><td>Wednesday</td><td>Dec</td><td>Q4</td><td>No</td><td class="hl">Yes (Xmas)</td><td>52</td></tr>
+            <tr><td>20241226</td><td>2024-12-26</td><td>Thursday</td><td>Dec</td><td>Q4</td><td>No</td><td class="hl">Yes (Boxing)</td><td>52</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-sm mt-2"><strong>Finest grain = one day</strong> (Kimball: finer divisions "aren't analytically interesting"). Handle sub-day needs like this:</p>
+      <ul class="mt-1 space-y-1 list-disc list-inside text-sm">
+        <li><strong>Exact timestamps</strong> &rarr; store as a plain attribute on the fact for drill-through display (not for roll-up).</li>
+        <li><strong>Durations</strong> (gap between two events) &rarr; calculate in ETL, store as an additive <em>measure</em>.</li>
+        <li><strong>Time-of-day banding</strong> (peak/off-peak) &rarr; a <em>separate</em> time-of-day dimension (8am Monday = 8am Tuesday; it's time-related, not date-related).</li>
+        <li><strong>Globalization</strong> (one fact rolls up to different days per time zone) &rarr; the genuinely hard one; finer date-dim rows help, but even Kimball hasn't fully cracked per-user roll-up.</li>
+      </ul>
+      <div class="lay card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm">It's a <strong>pre-printed wall calendar with notes</strong>. The computer can work out "what weekday is 25 Dec" &mdash; but only your scribbled note tells it "that's a public holiday." And "what day did it happen?" vs "was it during the morning rush?" are two different questions, so they get two different lookups.</p>
+      </div>
+
+      <!-- special: role/outrigger/junk -->
+      <h3 id="special" class="text-lg font-bold text-blue100 mt-8">9b. Role-playing, Outrigger &amp; Junk dimensions</h3>
+
+      <p class="text-base font-semibold text-blue130 mt-3">Role-playing dimension</p>
+      <p class="text-sm mt-1"><strong>What it is:</strong> <em>one</em> physical dimension table that gets used <em>several times</em> in the same fact, each time meaning something different (playing a different "role"). The textbook case is DIM_DATE: an order has an <strong>order date</strong>, a <strong>ship date</strong>, and a <strong>delivery date</strong> &mdash; all three are just dates, so all three point back to the same DIM_DATE table.</p>
+      <p class="text-sm mt-2"><strong>Why needed / the problem it solves:</strong> you do <em>not</em> want to build three near-identical date tables (DIM_ORDER_DATE, DIM_SHIP_DATE, DIM_DELIVERY_DATE) &mdash; that's wasteful and they'd drift out of sync. But if all three foreign keys point at one table and a user drags in "Month Name," they can't tell <em>which</em> date they got. Fix: keep ONE physical table, and expose it under multiple <strong>aliases / views</strong> ("Order Date," "Ship Date," "Delivery Date") so reports stay unambiguous.</p>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; one DIM_DATE, played in three roles by one order</p>
+        <table class="d">
+          <thead><tr><th>DIM_DATE (single shared table)</th><th>date</th><th>month</th><th>day_name</th></tr></thead>
+          <tbody>
+            <tr><td>date_key 20240301</td><td>2024-03-01</td><td>Mar</td><td>Friday</td></tr>
+            <tr><td>date_key 20240302</td><td>2024-03-02</td><td>Mar</td><td>Saturday</td></tr>
+            <tr><td>date_key 20240305</td><td>2024-03-05</td><td>Mar</td><td>Tuesday</td></tr>
+          </tbody>
+        </table>
+        <table class="d mt-2">
+          <thead><tr><th>FACT_ORDER</th><th>order_date_key<br><span class="text-blue-200 font-normal">(role: "Order Date")</span></th><th>ship_date_key<br><span class="text-blue-200 font-normal">(role: "Ship Date")</span></th><th>delivery_date_key<br><span class="text-blue-200 font-normal">(role: "Delivery Date")</span></th><th>amount</th></tr></thead>
+          <tbody><tr><td>ORD-900</td><td>20240301</td><td>20240302</td><td>20240305</td><td>84.20</td></tr></tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">All three keys point to the <em>same</em> DIM_DATE. In the BI tool you present it 3 times as "Order Date / Ship Date / Delivery Date" so "Month" is never ambiguous. One table, three roles &rarr; you can now ask "orders placed in March but delivered in April."</p>
+      </div>
+
+      <p class="text-base font-semibold text-blue130 mt-5">Outrigger dimension</p>
+      <p class="text-sm mt-1"><strong>What it is:</strong> a dimension that hangs off <em>another dimension</em> (a dimension pointing to a dimension), instead of hanging off the fact. The allowed case: a dimension has a date inside it &mdash; e.g. DIM_CUSTOMER has a <strong>date_of_birth</strong> &mdash; and you want the rich date attributes (birth month, birth decade, day-of-week) for analysis. So DIM_CUSTOMER carries a <code>dob_date_key</code> that points into the shared DIM_DATE. That secondary dimension is the "outrigger."</p>
+      <p class="text-sm mt-2"><strong>Why needed:</strong> it lets you <em>reuse</em> the powerful date dimension for an attribute buried inside another dimension, without rebuilding all that calendar logic. <strong>Isn't this snowflaking?</strong> Technically yes (a dimension is now 2 hops from the fact) &mdash; but Kimball explicitly blesses it as an <em>outrigger</em> because you're reusing an existing standalone dimension, not normalizing for tidiness. <strong>Caveat:</strong> use sparingly &mdash; if you find yourself outrigging all over the place, you've over-normalized your dimensions.</p>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; DIM_CUSTOMER outrigged to DIM_DATE via date-of-birth</p>
+        <table class="d">
+          <thead><tr><th>DIM_CUSTOMER</th><th>name</th><th>region</th><th class="hl">dob_date_key &rarr; DIM_DATE</th></tr></thead>
+          <tbody><tr><td>customer_key 1201</td><td>Kim</td><td>East</td><td class="hl">19900412</td></tr></tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">Follow 19900412 into DIM_DATE and you instantly get birth-month, birth-decade, birthday day-of-week &mdash; reused, not rebuilt. Now you can analyze "sales by customer's birth decade" for free.</p>
+      </div>
+
+      <p class="text-base font-semibold text-blue130 mt-5">Junk dimension</p>
+      <p class="text-sm mt-1"><strong>What it is:</strong> after you've moved product/customer/store/date out to real dimensions, the fact is often left with a handful of <strong>low-cardinality flags &amp; indicators</strong> &mdash; gift-wrapped? gift receipt? loyalty used? &mdash; that don't belong to any real dimension and aren't related to each other. A <strong>junk dimension</strong> sweeps all of them into one small table (one row per <em>combination</em> of flag values) and the fact carries a single foreign key to it.</p>
+      <p class="text-sm mt-2"><strong>Why needed / the problem it solves:</strong> the alternatives are ugly. Leaving 4 flags <em>in</em> the fact bloats it; making 4 separate tiny dimensions means 4 extra joins in every query. A junk dimension = <strong>one</strong> extra key and <strong>one</strong> join gives you all the flags. <strong>Caveat:</strong> junk dimensions are <em>not conformed</em> &mdash; the flag bundle on the Sales fact differs from the bundle on the Promotions fact &mdash; so you can't drill across on a junk attribute (usually you don't want to anyway).</p>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; DIM_SALE_JUNK (one row per unique combination of flags)</p>
+        <table class="d">
+          <thead><tr><th>junk_key</th><th>gift_wrapped</th><th>gift_receipt</th><th>loyalty_used</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>No</td><td>No</td><td>No</td></tr>
+            <tr><td>2</td><td>Yes</td><td>Yes</td><td>No</td></tr>
+            <tr><td>3</td><td>Yes</td><td>No</td><td>Yes</td></tr>
+          </tbody>
+        </table>
+        <table class="d mt-2">
+          <thead><tr><th>FACT_SALES</th><th class="hl">junk_key (one FK, not three)</th><th>amount</th></tr></thead>
+          <tbody>
+            <tr><td>sale 1001</td><td class="hl">2</td><td>7.00</td></tr>
+            <tr><td>sale 1002</td><td class="hl">1</td><td>3.50</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">Sale 1001 &rarr; junk_key 2 = gift-wrapped + gift receipt, no loyalty. One key replaces three flag columns/joins. If flags have few values, the junk table stays tiny (2&times;2&times;2 = max 8 rows here).</p>
+      </div>
+
+      <div class="lay card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <ul class="mt-2 text-sm space-y-1 list-disc list-inside">
+          <li><strong>Role-playing</strong> = the same actor wearing different costumes. One calendar on the wall, but you label three windows onto it: "ordered," "shipped," "delivered" &mdash; so nobody mixes them up. You don't buy three calendars.</li>
+          <li><strong>Outrigger</strong> = you already own one really good wall calendar; when a customer file mentions a birthday, you just point at that same calendar instead of building a new one.</li>
+          <li><strong>Junk dimension</strong> = the kitchen junk drawer: batteries, rubber bands, twist ties &mdash; unrelated bits that each don't deserve their own labelled cabinet, so you toss them in one drawer and grab the whole drawer with one pull.</li>
+        </ul>
+      </div>
+
+
+      <!-- monster/mini -->
+      <h3 id="monster" class="text-lg font-bold text-blue100 mt-8">9c. Monster &amp; Mini dimensions</h3>
+      <p class="text-sm mt-1"><strong>The pain point:</strong> a <strong>monster dimension</strong> is huge in both directions &mdash; millions of customers &times; hundreds of attributes. Some of those attributes (age band, income, marital status) change fairly often. If you make the whole thing Type 2 (new row on every change), it <em>explodes</em>: 5M customers &times; ~10 attribute changes/year = <strong>50M new rows/year</strong> &rarr; 250M rows in 5 years. Joining that to a billion-row fact = terrible performance.</p>
+      <p class="text-sm mt-2"><strong>The fix:</strong> keep the customer dimension itself <strong>Type 1</strong> (small, stable), and lift the volatile attributes out into a separate small <strong>mini dimension</strong> that holds <em>one row per unique combination</em> of those attribute values (no customer id at all). The <em>fact</em> stores the mini-dimension key that applied at the time of the event &mdash; so the customer's history lives in the trail of keys across their fact rows, not in a bloated dimension.</p>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; DIM_CUSTOMER_DEMOGRAPHICS (mini; note: NO customer id!)</p>
+        <table class="d">
+          <thead><tr><th>demo_key</th><th>age_band</th><th>income_band</th><th>has_kids</th></tr></thead>
+          <tbody>
+            <tr><td>D1</td><td>18-25</td><td>Low</td><td>No</td></tr>
+            <tr><td>D2</td><td>26-35</td><td>Medium</td><td>No</td></tr>
+            <tr><td>D3</td><td>36-45</td><td>Medium</td><td>Yes</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">One row (D1) covers ALL "18-25 / Low / No kids" customers &mdash; maybe 500,000 people share it. Max size = age_bands &times; income_bands &times; kids = tiny (here just a few hundred rows), no matter how many millions of customers you have.</p>
+      </div>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; the history lives in the FACT, via the demo_key</p>
+        <table class="d">
+          <thead><tr><th>FACT_SALES</th><th>date</th><th>customer_key</th><th class="hl">demo_key (at purchase time)</th><th>amount</th></tr></thead>
+          <tbody>
+            <tr><td>sale A</td><td>2021-06</td><td>1201 (Kim)</td><td class="hl">D1 (18-25, Low, No kids)</td><td>30.00</td></tr>
+            <tr><td>sale B</td><td>2024-03</td><td>1201 (Kim)</td><td class="hl">D3 (36-45, Medium, kids)</td><td>90.00</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">Same customer (1201), different demo_key on each sale &rarr; you can see Kim's spend when she was young &amp; low-income vs older with kids &mdash; profile history tracked <em>through the fact</em>, without ever adding a row to the customer dimension.</p>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">DRAWBACKS &amp; GOTCHAS of mini dimensions</span></p>
+        <ul class="mt-2 text-sm space-y-1 list-disc list-inside">
+          <li><strong>The mini dimension itself is SCD Type 1</strong> &mdash; it is NOT versioned. When Kim ages into a new band you do <em>not</em> update or end-date any mini row; you simply point her next fact at a <em>different existing</em> mini row (or add a brand-new combination if it's never been seen). The mini table just holds all possible combinations.</li>
+          <li><strong>You lose point-in-time profile history OUTSIDE of a fact.</strong> If a customer hasn't transacted since their profile changed, there's no fact row to carry the new demo_key &mdash; so you can't tell "what was Kim's income band on 1 Jan" unless a fact happened around then. History is only as granular as the events.</li>
+          <li><strong>Banding loses precision.</strong> You bucket age into "18-25" etc. to keep combinations small &mdash; so you can't query exact age, only the band. Choosing bands is a design trade-off (too fine &rarr; the mini table grows toward monster size again).</li>
+          <li><strong>Correlated changes look like one jump.</strong> If several attributes change between two purchases, you only see the before/after snapshot on those two facts, not the intermediate steps.</li>
+          <li><strong>Analyzing the customer dimension alone doesn't show demographics</strong> &mdash; because you moved them out. That's exactly what <strong>Type 5</strong> fixes (put the <em>current</em> demo_key back into DIM_CUSTOMER &mdash; see SCD section).</li>
+        </ul>
+      </div>
+      <div class="lay card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm">Instead of a fresh profile photocopy every time any tiny detail changes (cabinet explodes!), you make a few reusable <strong>"shopper-type stickers"</strong> ("young-single-low-income"). Millions of people share the same few stickers; each purchase notes which sticker fit them that day. The catch: the stickers themselves never change, and you only learn someone switched stickers <em>when they next shop</em> &mdash; if they go quiet, you're in the dark until they return.</p>
+      </div>
+
+      <!-- bridge/ragged -->
+      <h3 id="bridge" class="text-lg font-bold text-blue100 mt-8">9d. Bridge tables (many-to-many)</h3>
+      <p class="text-sm mt-1"><strong>The pain point:</strong> a normal star assumes <em>one fact row &rarr; one dimension row</em> (many-to-one). But real life has <strong>many-to-many</strong>: one sale can be driven by <em>several</em> promotions; one hospital treatment can address <em>several</em> diagnoses; one insurance policy can have <em>several</em> holders. You can't just put a single <code>promo_key</code> on the fact &mdash; which one would you pick?</p>
+      <p class="text-sm mt-2"><strong>The naive fix (don't):</strong> a raw cross-reference table joining the million-row fact directly to a million-row promotion list. Joining two enormous tables kills performance &mdash; "that dog won't hunt."</p>
+      <p class="text-sm mt-2"><strong>The Kimball fix:</strong> introduce a small reusable <strong>group dimension</strong> (one row per <em>combination</em> that actually occurs), put a single group key on the fact, and use a tiny <strong>bridge</strong> to resolve the group into its individual members. Then guard against double-counting with a <strong>weighting factor</strong> (pro-rate the measure) or a <strong>primary flag</strong> (count only the main member).</p>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; a sale driven by a promo <em>group</em>, resolved via a weighted bridge</p>
+        <p class="mt-2 text-sm font-semibold">Step 1 &mdash; FACT_SALES carries ONE group key (not many promo keys)</p>
+        <table class="d">
+          <thead><tr><th>sale_key</th><th>product</th><th class="hl">promo_group_key</th><th>amount</th></tr></thead>
+          <tbody><tr><td>1003</td><td>Steak</td><td class="hl">PG-1</td><td>100.00</td></tr></tbody>
+        </table>
+        <p class="mt-3 text-sm font-semibold">Step 2 &mdash; BRIDGE resolves the group into its members, with weights that sum to 1.0</p>
+        <table class="d">
+          <thead><tr><th>promo_group_key</th><th>promo_key</th><th>weight</th></tr></thead>
+          <tbody>
+            <tr><td>PG-1</td><td>PR-7 (Summer BBQ)</td><td>0.7</td></tr>
+            <tr><td>PG-1</td><td>PR-9 (Loyalty 2x)</td><td>0.3</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-3 text-sm font-semibold">Result &mdash; attributing the $100 sale to promotions WITHOUT double-counting</p>
+        <table class="d">
+          <thead><tr><th>promo</th><th>calc</th><th>attributed_sales</th></tr></thead>
+          <tbody>
+            <tr><td>PR-7</td><td>100 &times; 0.7</td><td>70.00</td></tr>
+            <tr><td>PR-9</td><td>100 &times; 0.3</td><td>30.00</td></tr>
+            <tr><td class="hl">Total</td><td class="hl">&mdash;</td><td class="hl">100.00 (not 200!)</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">Without weights, joining the sale to 2 promos would report $100 <em>twice</em> = $200 phantom sales. Weights fix it. Alternative: mark PR-7 as the <strong>primary</strong> promo and filter to primary-only &rarr; one clean row of $100 (but you lose PR-9's contribution).</p>
+      </div>
+      <div class="lay card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm">One doctor's visit, several things wrong with you (say a $250 visit treating both osteoporosis <em>and</em> a fractured leg). If you naively bill "per diagnosis" you charge $500 for one visit. So you either <strong>split the bill</strong> across the diagnoses (weighting) or <strong>count only the main reason</strong> for the visit (primary flag). The "group" is like a combo meal &mdash; lots of patients have the exact same set of ailments, so you reuse the same group instead of re-listing every pairing.</p>
+      </div>
+
+      <h3 id="ragged" class="text-lg font-bold text-blue100 mt-8">9e. Ragged (variable-depth) hierarchies</h3>
+      <p class="text-sm mt-1"><strong>The pain point:</strong> normal hierarchies have neat, fixed, labelled levels (Day &rarr; Month &rarr; Quarter &rarr; Year). A <strong>ragged</strong> hierarchy has <em>unknown, uneven depth</em>. Example: BargainMart's <strong>business customers</strong> &mdash; "ACME Store" belongs to "ACME Region," which belongs to "ACME Holdings"... and some chains are 3 levels deep, others 8. You can't ask for "level-3 customers" (a level may not even exist on one branch); you ask "show all sales for ACME Holdings <em>and everything under it</em>."</p>
+      <p class="text-sm mt-2"><strong>The naive fix (don't):</strong> a self-referencing <code>parent_key</code> column. Easy to <em>store</em>, but a nightmare to <em>query</em> &mdash; you don't know how many self-joins to write (3? 8?), and recursive SQL (<code>CONNECT BY</code>) is slow on big tables.</p>
+      <p class="text-sm mt-2"><strong>The Kimball fix:</strong> pre-explode the tree into a <strong>hierarchy bridge</strong> listing <em>every ancestor&ndash;descendant pair</em> (including each node paired with itself). Then "everything under X" is a single lookup at any depth.</p>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; the tree, and the bridge that flattens it</p>
+        <p class="mt-2 text-sm">Tree: <code>ACME Holdings &rarr; ACME North (region) &rarr; Store #5</code></p>
+        <p class="mt-3 text-sm font-semibold">BRIDGE_CUSTOMER_HIERARCHY (every ancestor &rarr; descendant pair)</p>
+        <table class="d">
+          <thead><tr><th>ancestor</th><th>descendant</th><th>levels_apart</th><th>is_leaf</th></tr></thead>
+          <tbody>
+            <tr><td>ACME Holdings</td><td>ACME Holdings</td><td>0</td><td>No</td></tr>
+            <tr><td>ACME Holdings</td><td>ACME North</td><td>1</td><td>No</td></tr>
+            <tr><td class="hl">ACME Holdings</td><td class="hl">Store #5</td><td class="hl">2</td><td class="hl">Yes</td></tr>
+            <tr><td>ACME North</td><td>ACME North</td><td>0</td><td>No</td></tr>
+            <tr><td>ACME North</td><td>Store #5</td><td>1</td><td>Yes</td></tr>
+            <tr><td>Store #5</td><td>Store #5</td><td>0</td><td>Yes</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-3 text-sm font-semibold">Query: "all sales under ACME Holdings"</p>
+        <p class="text-xs text-gray-600 mt-1">Filter bridge to <code>ancestor = 'ACME Holdings'</code> &rarr; gives descendants {Holdings, North, Store #5}. Join those to FACT_SALES &rarr; you sweep up every sale at any depth in one hop &mdash; no matter whether the branch is 2 or 8 levels deep.</p>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">GOTCHAS</span></p>
+        <ul class="mt-2 text-sm space-y-1 list-disc list-inside">
+          <li><strong>Double-counting:</strong> selecting two ancestors where one is inside the other double-counts the overlap. Stay safe by filtering to a <em>single</em> ancestor, or to leaf/same-level nodes (use the <code>is_leaf</code> / <code>levels_apart</code> helper columns).</li>
+          <li><strong>Size is bounded:</strong> rows &asymp; nodes &times; average depth (e.g. 5M customers &times; ~10 = 50M) &mdash; big but capped; it won't keep growing like a Type-2 monster.</li>
+          <li>Some BI tools (SSAS) and Oracle <code>CONNECT BY</code> handle ragged trees for you &mdash; but the pre-built bridge usually performs better.</li>
+        </ul>
+      </div>
+      <div class="lay card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm">A family tree / company org-chart of unknown depth. Rather than climbing branch by branch every time someone asks "show me everyone under Grandma," you pre-write a cheat-sheet pairing <strong>every person with each of their ancestors</strong> ("Tim&rarr;Dad, Tim&rarr;Grandma, Tim&rarr;Great-Grandma"). Now "everyone under Grandma" is a single lookup instead of a scavenger hunt.</p>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">REMEMBER</span></p>
+        <p class="mt-2 text-sm">Special dimensions hooks: <strong>C</strong>onformed, <strong>R</strong>ole-playing, <strong>O</strong>utrigger, <strong>D</strong>ate, <strong>J</strong>unk, <strong>M</strong>ini/monster, <strong>B</strong>ridge, <strong>R</strong>agged. Many-to-many &rarr; <strong>Bridge</strong> (weight or primary-flag to avoid double-count). Variable depth &rarr; <strong>Ragged / pair-bridge</strong>. Huge, fast-changing dimension &rarr; <strong>Mini</strong>.</p>
+      </div>
+    </section>
+
+    <!-- ============ 10. SCD ============ -->
+    <section id="scd">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">10. Slowly Changing Dimensions (SCD) &mdash; Type 0 to 6</h2>
+      <p class="mt-4">What do you do when a dimension attribute changes? This is the #1 interview topic. <strong>The choice is made per COLUMN, not per table.</strong></p>
+      <p class="mt-3 text-sm">Scenario: customer <strong>Kim (customer #C-42)</strong> moves from the <em>North</em> region to <em>East</em>, and later changes her surname.</p>
+
+      <h3 class="text-base font-bold text-blue100 mt-5">Type 0 &mdash; frozen (never changes)</h3>
+      <p class="text-sm">e.g. original signup date. Ignore updates.</p>
+
+      <h3 class="text-base font-bold text-blue100 mt-5">Type 1 &mdash; overwrite (no history)</h3>
+      <div class="data card mt-2 p-3 rounded"><table class="d">
+        <thead><tr><th>cust_key</th><th>cust_id</th><th>name</th><th>region</th></tr></thead>
+        <tbody><tr><td>7</td><td>C-42</td><td>Kim</td><td class="hl">East</td></tr></tbody>
+      </table><p class="text-xs text-gray-600 mt-1">Region just gets overwritten North&rarr;East. Old sales now wrongly look like they were in East. Fine only if you don't care about history.</p></div>
+
+      <h3 class="text-base font-bold text-blue100 mt-5">Type 2 &mdash; add a new row (full history) &mdash; the workhorse</h3>
+      <div class="data card mt-2 p-3 rounded"><table class="d">
+        <thead><tr><th>cust_key</th><th>cust_id</th><th>name</th><th>region</th><th>effective</th><th>expiry</th><th>current?</th></tr></thead>
+        <tbody>
+          <tr><td>7</td><td>C-42</td><td>Kim</td><td>North</td><td>2022-04-12</td><td class="hl">2023-05-31</td><td>N</td></tr>
+          <tr><td>8</td><td>C-42</td><td>Kim</td><td>East</td><td>2023-05-31</td><td>9999-12-31</td><td>Y</td></tr>
+        </tbody>
+      </table><p class="text-xs text-gray-600 mt-1">New surrogate key (8), same cust_id (C-42). Old sales join to key 7 (North); new sales to key 8 (East). Keep a contiguous, gap-free timeline; make the expiry date <strong>non-inclusive</strong> so a sale exactly on the boundary lands cleanly on the new row.</p></div>
+      <p class="text-sm mt-2"><strong>Current-flag vs effective/expiry dates:</strong> a simple "current row" flag breaks for a <em>late-arriving</em> sale (a file from last week would wrongly attach to today's row). Effective/expiry dates fix this &mdash; compare the sale's date to each row's range and pick the row active <em>at the time of the sale</em>.</p>
+
+      <div class="lay card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN &mdash; business date, not system date (the #1 mistake)</span></p>
+        <p class="mt-2 text-sm">Which date goes in effective/expiry? The <strong>business date</strong> (when the change was actually effective), NOT the system/ETL date (when the warehouse happened to load it). Example: "Joe is promoted and starts earning commission <strong>immediately</strong>" &mdash; his commission starts on his <em>promotion day</em>, not on <em>data-entry day</em>. Sometimes system date <em>is</em> the business date (e.g. e-commerce where the customer updates their own details live). <strong>Precision:</strong> make dates as accurate as the business date genuinely is (often just day-level; sometimes only month or financial year) &mdash; don't invent second-level precision that doesn't exist. When granularity is coarse and many updates share a period, just keep updating the current row instead of spawning duplicate same-dated rows.</p>
+      </div>
+
+      <h3 class="text-base font-bold text-blue100 mt-5">Type 3 &mdash; add a "prior value" column (limited history)</h3>
+      <div class="data card mt-2 p-3 rounded"><table class="d">
+        <thead><tr><th>cust_key</th><th>cust_id</th><th>current_region</th><th>prior_region</th></tr></thead>
+        <tbody><tr><td>7</td><td>C-42</td><td>East</td><td class="hl">North</td></tr></tbody>
+      </table><p class="text-xs text-gray-600 mt-1">One row keeps both "now" and "before." Great for a one-off reorg (run reports the old way or the new way for a few weeks). Useless if it keeps changing. NOT "better than Type 2" &mdash; different job.</p></div>
+
+      <h3 class="text-base font-bold text-blue100 mt-5">Type 4 &mdash; mini dimension</h3>
+      <p class="text-sm">Move fast-changing attributes to a small mini dimension (see 9c). Base dimension stays Type 1. History is tracked by which mini-row the fact points at.</p>
+
+      <h3 class="text-base font-bold text-blue100 mt-5">Type 5 &mdash; Type 4 + mini keys back in base (current view)</h3>
+      <p class="text-sm">Add the mini-dimension's <em>current</em> key <strong>into the customer dimension itself</strong> so you can analyze customers "as they are now" ("how many under-25, low-income, no-kids customers in the north <em>right now</em>?") without touching a fact table. The base dim stays Type 1; this added key is kept current (overwritten) as demographics change. You can't ask about last year from here &mdash; that history still lives in the fact via Type 4.</p>
+      <div class="data card mt-2 p-3 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; DIM_CUSTOMER (Type 1 base) with a <em>current</em> demo_key bolted back on (the Type-5 bit)</p>
+        <table class="d">
+          <thead><tr><th>cust_key</th><th>cust_id</th><th>name</th><th>region</th><th class="hl">current_demo_key &rarr; mini dim</th></tr></thead>
+          <tbody><tr><td>7</td><td>C-42</td><td>Kim</td><td>East</td><td class="hl">D3 (36-45, Medium, kids)</td></tr></tbody>
+        </table>
+        <table class="d mt-2">
+          <thead><tr><th>DIM_CUSTOMER_DEMOGRAPHICS (mini)</th><th>age_band</th><th>income_band</th><th>has_kids</th></tr></thead>
+          <tbody><tr><td>demo_key D3</td><td>36-45</td><td>Medium</td><td>Yes</td></tr></tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">Now you can count "customers who currently look like D3" straight from DIM_CUSTOMER &mdash; treating the dimension almost like a fact &mdash; while the <em>historical</em> demo_key still sits on each sale (Type 4). Best of both: Type 4 = history in the fact, Type 5 = current snapshot in the dim.</p>
+      </div>
+
+      <h3 class="text-base font-bold text-blue100 mt-5">Type 6 &mdash; hybrid (1 + 2 + 3)</h3>
+      <p class="text-sm">Different columns behave differently in <em>one</em> table (the SCD type is chosen per-column). Here: <strong>region</strong> is Type 2 (new row, keep history), a <strong>name</strong>-spelling fix is Type 1 (overwrite everywhere so Kim isn't split into two people in a "top customers" report), and a <strong>current_region</strong> column is Type 3 (always shows today's value on every historical row). The name "Type 6" comes from <strong>1 + 2 + 3 = 6</strong>.</p>
+      <div class="data card mt-2 p-3 rounded">
+        <p><span class="lbl lbl-data">SAMPLE DATA</span> &mdash; DIM_CUSTOMER as a Type-6 hybrid (Kim moved North&rarr;East; later a name typo "Kimberly"&rarr;"Kim" was fixed)</p>
+        <table class="d">
+          <thead><tr>
+            <th>cust_key</th><th>cust_id</th>
+            <th>name<br><span class="font-normal text-blue-200">(Type 1: overwrite all)</span></th>
+            <th>region<br><span class="font-normal text-blue-200">(Type 2: historical)</span></th>
+            <th>current_region<br><span class="font-normal text-blue-200">(Type 3: always today)</span></th>
+            <th>effective</th><th>expiry</th><th>current?</th>
+          </tr></thead>
+          <tbody>
+            <tr><td>7</td><td>C-42</td><td class="hl">Kim</td><td>North</td><td class="hl">East</td><td>2022-04-12</td><td>2023-05-31</td><td>N</td></tr>
+            <tr><td>8</td><td>C-42</td><td class="hl">Kim</td><td>East</td><td class="hl">East</td><td>2023-05-31</td><td>9999-12-31</td><td>Y</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">Read it column by column: <strong>name</strong> = "Kim" on BOTH rows (Type 1 overwrote the old "Kimberly" everywhere &rarr; she stays one person). <strong>region</strong> differs per row = North then East (Type 2 &rarr; old sales roll up to North, new to East). <strong>current_region</strong> = "East" on BOTH rows (Type 3 &rarr; lets you re-report ALL of Kim's history under her latest region if you want). One table, three behaviours = Type 6.</p>
+      </div>
+
+      <div class="lay card mt-5 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm">Your phone contacts: if a friend <strong>moves house</strong> you want their <em>address history</em> (Type 2). If you just <strong>fix a typo in their name</strong>, you overwrite it everywhere so it's not a second contact (Type 1). Type 3 = a form with "previous address" and "current address" boxes.</p>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">REMEMBER</span> &mdash; the SCD ladder (memorize this table!)</p>
+        <table class="d mt-2">
+          <thead><tr><th>Type</th><th>Action</th><th>History?</th><th>One-liner</th></tr></thead>
+          <tbody>
+            <tr><td>0</td><td>Never change</td><td>Original</td><td>"Frozen"</td></tr>
+            <tr><td>1</td><td>Overwrite</td><td>None</td><td>"Replace"</td></tr>
+            <tr><td>2</td><td>New row</td><td>Full</td><td>"Row" (the workhorse)</td></tr>
+            <tr><td>3</td><td>New column</td><td>Limited</td><td>"Column"</td></tr>
+            <tr><td>4</td><td>Mini dimension</td><td>Full (elsewhere)</td><td>"Mini"</td></tr>
+            <tr><td>5</td><td>4 + key back</td><td>Full + current</td><td>"Mini + snapshot"</td></tr>
+            <tr><td>6</td><td>1+2+3 combo</td><td>Hybrid</td><td>"1+2+3 = 6"</td></tr>
+          </tbody>
+        </table>
+        <p class="text-sm mt-2">Killer mnemonic: <strong>"0 Freeze, 1 Replace, 2 Row, 3 Column, 4 Mini, 5 Mini+key, 6 = 1+2+3."</strong> And <strong>6 literally equals 1+2+3.</strong></p>
+      </div>
+    </section>
+
+    <!-- ============ 11. DESIGN ============ -->
+    <section id="design">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">11. The 4-step design process</h2>
+      <ol class="mt-4 space-y-2 list-decimal list-inside">
+        <li><strong>Pick the business process</strong> &mdash; what decision matters? Ask the CEO/senior manager what questions they ask (process, not department). e.g. retail sales.</li>
+        <li><strong>Declare the grain</strong> &mdash; what is one row? (one product on one receipt line) &mdash; and stick to it.</li>
+        <li><strong>Choose the dimensions</strong> &mdash; date, product, store, customer, promotion.</li>
+        <li><strong>Identify the facts</strong> &mdash; qty, sales amount, cost, discount.</li>
+      </ol>
+      <p class="mt-3 text-sm">Always acquire the <strong>atomic grain first</strong>; build aggregate star schemas on top only for performance. Do all enrichment/business rules in <strong>staging</strong>, never in the presentation layer. Keep measures from different measurement processes in separate facts.</p>
+      <div class="lay card mt-5 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm">Record <strong>one row per item on the receipt</strong>, not per whole receipt &mdash; you can always add items up to a total, but you can never split a total back into items. Grab the finest useful detail first.</p>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">REMEMBER</span></p>
+        <p class="mt-2 text-sm">Order matters: <strong>Process &rarr; Grain &rarr; Dimensions &rarr; Facts.</strong> Mnemonic: <strong>"Please Grab Dimensional Facts."</strong> Everything serves two north stars: <strong>simplicity &amp; performance.</strong></p>
+      </div>
+    </section>
+
+    <!-- ============ 12. BONUS ============ -->
+    <section id="extra">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">12. Bonus gotchas worth knowing</h2>
+      <ul class="mt-4 space-y-2 list-disc list-inside text-sm">
+        <li><strong>Surrogate vs natural key:</strong> always mint your own numeric warehouse key (surrogate); keep the source's key (SKU, cust_id) as the natural key. Never trust source keys to stay stable, and never display the surrogate on screen.</li>
+        <li><strong>Business date, not system date:</strong> the #1 SCD mistake (see SCD Type 2 above).</li>
+        <li><strong>Extract simply, transform in staging:</strong> pull raw data (<code>SELECT *</code>), do all logic in the "kitchen," never in the presentation layer.</li>
+        <li><strong>Keep facts skinny:</strong> don't bloat fact rows with drill-through junk (long comments) &mdash; fatter rows = slower scans. Migrate them to a side table.</li>
+        <li><strong>Hard deletes at source:</strong> use change-data-capture, or compare full/scoped extracts to detect what vanished. It's a business problem too &mdash; the source must come to the party.</li>
+        <li><strong>Multiple facts per process:</strong> totally normal &mdash; e.g. an accumulating snapshot for the whole order plus a transaction fact for each status change.</li>
+        <li><strong>Persist &amp; never delete raw data:</strong> keep the "shoebox of receipts" so you can re-run transforms without re-querying the source.</li>
+      </ul>
+    </section>
+
+    <!-- ============ 13. INTERVIEW ============ -->
+    <section id="interview">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">13. Interview memory kit (how to not forget this)</h2>
+
+      <p class="mt-4 font-semibold text-blue130">The mnemonics to burn in:</p>
+      <table class="d">
+        <thead><tr><th>Topic</th><th>Hook</th></tr></thead>
+        <tbody>
+          <tr><td>6 requirements</td><td><strong>A-C-A-S-D-A</strong> = Accessible, Consistent, Adaptable, Secure, Decision-support, Accepted</td></tr>
+          <tr><td>Restaurant model</td><td>Sources&rarr;Staging&rarr;Presentation = Suppliers&rarr;Kitchen&rarr;Dining</td></tr>
+          <tr><td>3 axioms</td><td><strong>D-A-C</strong> = Dimensional, Atomic, Conformed</td></tr>
+          <tr><td>Fact table types</td><td><strong>TPAF</strong> = Transaction, Periodic, Accumulating, Factless</td></tr>
+          <tr><td>Additivity</td><td>Amounts=<strong>full</strong>, Balances=<strong>semi</strong>, Ratios=<strong>non</strong></td></tr>
+          <tr><td>Design steps</td><td><strong>"Please Grab Dimensional Facts"</strong> (Process, Grain, Dims, Facts)</td></tr>
+          <tr><td>SCD ladder</td><td><strong>Freeze, Replace, Row, Column, Mini, Mini+key, 1+2+3</strong></td></tr>
+          <tr><td>SCD Type 6</td><td>literally <strong>1 + 2 + 3 = 6</strong></td></tr>
+          <tr><td>Star vs snowflake</td><td><strong>"Star good, snowflake bad"</strong> (denormalize dimensions)</td></tr>
+        </tbody>
+      </table>
+
+      <p class="mt-6 font-semibold text-blue130">Rapid-fire Q&amp;A (say these out loud):</p>
+      <div class="space-y-3 mt-3 text-sm">
+        <div class="card rounded p-3 bg-subtle"><strong>Q: OLTP vs data warehouse?</strong><br>OLTP runs the business (write-optimized, normalized, one row at a time). DW watches the business (read-optimized, denormalized, millions of rows). A copy of OLTP is NOT a warehouse.</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: Star vs snowflake?</strong><br>Star = denormalized dims (fast, simple). Snowflake = normalized dims (avoid; hurts performance &amp; clarity).</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: Fact vs dimension?</strong><br>Fact = the measurements (skinny, tall, additive numbers). Dimension = the descriptions (fat, short, textual).</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: What's grain?</strong><br>The meaning of one fact row. Declare it early, keep it consistent, go as atomic as possible.</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: The 4 design steps?</strong><br>Process &rarr; Grain &rarr; Dimensions &rarr; Facts.</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: Inmon vs Kimball?</strong><br>Inmon = top-down normalized enterprise DW then marts. Kimball = bottom-up conformed dimensional marts. Most shops hybridize.</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: Difference between SCD Type 1, 2, 3?</strong><br>1 = overwrite (no history); 2 = new row (full history, the default); 3 = new column (one prior value).</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: Type 4/5/6?</strong><br>4 = mini dimension for volatile attributes; 5 = 4 + current mini-key back in base; 6 = hybrid 1+2+3 (per-column behaviour).</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: Business date vs system date in SCD Type 2?</strong><br>Always use the business (effective) date, not the load date. It's the most common mistake.</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: How to handle a huge, fast-changing customer dimension?</strong><br>Keep it Type 1; move volatile attributes into a mini dimension (Type 4); optionally add the current mini-key back (Type 5).</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: Many-to-many between fact and dimension?</strong><br>Use a bridge table (with a group dimension); guard against double-counting with weighting factors or a primary flag.</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: How to report on what DIDN'T happen (e.g. unsold products)?</strong><br>A factless / coverage fact (dimension keys, no measures).</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: Semi-additive fact example?</strong><br>Account/loyalty balance or stock-on-hand &mdash; sum across product/store, but NOT across time (use average or last).</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: Degenerate dimension?</strong><br>A dimension attribute (like order number) with no attributes of its own, so it lives in the fact table.</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: Conformed dimension?</strong><br>A shared, identical dimension across facts &mdash; enables drill-across (compare sales vs returns for the same customer).</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: Role-playing dimension?</strong><br>One physical dimension used in multiple roles via aliases/views (order date vs ship date).</div>
+        <div class="card rounded p-3 bg-subtle"><strong>Q: Why a date dimension instead of raw dates?</strong><br>You can't index every date function, and non-derivable attributes (holidays, fiscal weeks) need somewhere to live.</div>
+      </div>
+
+      <div class="mem card mt-6 p-4 rounded">
+        <p><span class="lbl lbl-mem">HOW TO REMEMBER LONG-TERM</span></p>
+        <ul class="mt-2 text-sm space-y-1 list-disc list-inside">
+          <li><strong>Anchor everything to ONE story</strong> (our BargainMart supermarket). Recall the story, the concept follows.</li>
+          <li><strong>Spaced repetition:</strong> re-read the mnemonic table at 1 day, 1 week, 1 month before an interview.</li>
+          <li><strong>Teach it:</strong> explain SCD Type 2 to a colleague using the "moving house" analogy &mdash; teaching cements memory.</li>
+          <li><strong>The 3-word spine:</strong> <em>Star schema &rarr; Facts &amp; Dimensions &rarr; SCDs.</em> Everything else hangs off those three.</li>
+          <li><strong>Chain the analogies:</strong> Restaurant (structure) &rarr; Till roll &amp; booklets (star) &rarr; Bank statement (semi-additive) &rarr; Moving house (SCD2) &rarr; Junk drawer (junk dim) &rarr; Family tree (ragged).</li>
+        </ul>
+      </div>
+    </section>
+
+    <footer class="pt-8 border-t border-gray-200 text-sm text-gray-500">
+      <p>Consolidated (in full, nothing cut) from three Kimball talks by Ross Lean (DWS Ltd): Dimensional Modelling 101, Intermediate, and Advanced. Source concepts &copy; Ralph Kimball &amp; Margy Ross, <em>The Data Warehouse Toolkit</em>. Retail sample data ("BargainMart") is illustrative.</p>
+      <p class="mt-1">Built with care by Code Puppy.</p>
+    </footer>
+
+  </main>
+</div>
+
+</body>
+</html>
