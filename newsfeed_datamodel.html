@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NewsFeed Data Model + SQL Metric Tricks — The Complete Cheat-Sheet</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: { colors: {
+  blue100:'#0053e2', blue130:'#001e60', spark:'#ffc220', spark10:'#fff3d6',
+  ink:'#1a1a1a', subtle:'#f5f5f5', success:'#2a8703', green10:'#e6f4e0', warntx:'#995213',
+  trapbg:'#fdecea', trapbd:'#c62828'
+}, fontFamily:{ sans:['system-ui','Segoe UI','Helvetica','Arial','sans-serif'] } } } }
+</script>
+<style>
+  html{scroll-behavior:smooth}
+  .lay{background:#fff3d6;border-left:4px solid #ffc220}
+  .data{background:#eef3ff;border-left:4px solid #0053e2}
+  .mem{background:#e6f4e0;border-left:4px solid #2a8703}
+  .trap{background:#fdecea;border-left:4px solid #c62828}
+  .card{box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  h2{scroll-margin-top:5rem}
+  h3{scroll-margin-top:5rem}
+  table.d{border-collapse:collapse;width:100%;margin-top:.5rem;font-size:.82rem}
+  table.d th,table.d td{border:1px solid #cdd7ea;padding:.35rem .55rem;text-align:left;vertical-align:top}
+  table.d th{background:#001e60;color:#fff;font-weight:600}
+  table.d tbody tr:nth-child(even){background:#f7f9ff}
+  .hl{background:#fff3d6;font-weight:600}
+  .lbl{display:inline-block;color:#fff;font-size:.68rem;font-weight:700;padding:.12rem .5rem;border-radius:.25rem;letter-spacing:.03em}
+  .lbl-lay{background:#995213}.lbl-data{background:#0053e2}.lbl-mem{background:#2a8703}.lbl-trap{background:#c62828}
+  code{background:#eef1f5;padding:.05rem .3rem;border-radius:.2rem;font-size:.85em}
+  pre{background:#0d1b2a;color:#e6edf3;padding:.9rem 1rem;border-radius:.5rem;overflow-x:auto;font-size:.8rem;line-height:1.5;margin-top:.5rem}
+  pre .kw{color:#79c0ff}.cm{color:#8b949e;font-style:italic}.st{color:#ffa657}
+  a.toclink:hover{color:#0053e2}
+</style>
+</head>
+<body class="font-sans text-ink bg-white leading-relaxed">
+
+<header class="bg-blue130 text-white">
+  <div class="max-w-6xl mx-auto px-6 py-12">
+    <p class="text-spark font-semibold tracking-wide uppercase text-sm">Data Modelling + SQL Analytics</p>
+    <h1 class="text-3xl md:text-4xl font-extrabold mt-2">NewsFeed Data Model &amp; <span class="text-spark">SQL Metric Tricks</span> — Complete Cheat-Sheet</h1>
+    <p class="mt-3 text-blue-100/90 max-w-3xl">A star schema for a social-media newsfeed (Instagram / Facebook / Twitter style), plus every SQL analytics trick worth memorising: how to derive a metric, numerator-vs-denominator, the <code class="text-white">100.0</code> rule, divide-by-zero, NULL handling, window functions, and blank <code class="text-white">OVER()</code>. Every idea comes with plain-English words, sample data, and a memory hook.</p>
+    <div class="mt-5 flex flex-wrap gap-3 text-xs">
+      <span class="bg-white/10 rounded px-3 py-1"><span class="lbl lbl-lay">LAYMAN</span> plain English</span>
+      <span class="bg-white/10 rounded px-3 py-1"><span class="lbl lbl-data">SAMPLE DATA</span> real tables</span>
+      <span class="bg-white/10 rounded px-3 py-1"><span class="lbl lbl-mem">REMEMBER / HACK</span> the trick</span>
+      <span class="bg-white/10 rounded px-3 py-1"><span class="lbl lbl-trap">TRAP</span> common bug</span>
+    </div>
+  </div>
+</header>
+
+<div class="bg-spark10 border-y border-spark">
+  <div class="max-w-6xl mx-auto px-6 py-3 text-sm text-warntx">
+    <strong>Source article:</strong> based on <a class="underline font-semibold hover:text-blue100" href="https://blog.dataengineerthings.org/designing-a-data-model-for-a-newsfeed-platform-ins-facebook-twitter-a-comprehensive-guide-d6ff3cbb712d" target="_blank" rel="noopener">"Designing a Data Model for a NewsFeed Platform (Ins/Facebook/Twitter): A Comprehensive Guide"</a> by Fools (Data Engineer Things). The SQL examples below are from that article; the sample data, plain-English notes, and SQL-trick sections are added here.
+  </div>
+</div>
+
+<div class="max-w-6xl mx-auto px-6 py-10 grid md:grid-cols-[250px_1fr] gap-10">
+
+  <nav class="hidden md:block text-sm sticky top-6 self-start">
+    <p class="font-bold text-blue130 uppercase text-xs tracking-wider mb-3">Jump to</p>
+    <ol class="space-y-1.5 text-gray-600">
+      <li class="font-semibold text-blue130">THE MODEL</li>
+      <li><a class="toclink" href="#model">1. The star schema</a></li>
+      <li><a class="toclink" href="#sample">2. Sample data (dims + fact)</a></li>
+      <li><a class="toclink" href="#drill">3. Drill-down trace</a></li>
+      <li><a class="toclink" href="#design">4. Design Q&amp;A (duration, dims)</a></li>
+      <li class="font-semibold text-blue130 pt-1">THINKING IN METRICS</li>
+      <li><a class="toclink" href="#derive">5. Deriving a metric</a></li>
+      <li><a class="toclink" href="#numden">6. Numerator vs denominator</a></li>
+      <li><a class="toclink" href="#avg">7. Averages = SUM / COUNT</a></li>
+      <li><a class="toclink" href="#grain">8. Choosing the grain</a></li>
+      <li class="font-semibold text-blue130 pt-1">SQL MECHANICS</li>
+      <li><a class="toclink" href="#phases">9. How SQL runs (phases)</a></li>
+      <li><a class="toclink" href="#window">10. Window funcs &amp; OVER()</a></li>
+      <li><a class="toclink" href="#hundred">11. The magic of 100.0</a></li>
+      <li><a class="toclink" href="#nulls">12. NULLIF, /0 &amp; NULLs</a></li>
+      <li class="font-semibold text-blue130 pt-1">WORKED EXAMPLES</li>
+      <li><a class="toclink" href="#example">13. % of viewers who engage</a></li>
+      <li><a class="toclink" href="#engage">14. Engagement vs share</a></li>
+      <li><a class="toclink" href="#gap">15. The data-gap insight</a></li>
+      <li><a class="toclink" href="#quick">16. Quick reference</a></li>
+    </ol>
+  </nav>
+
+  <main class="space-y-14 min-w-0">
+
+    <!-- ===== 1. MODEL ===== -->
+    <section id="model">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">1. The star schema</h2>
+      <p class="mt-4">A newsfeed platform delivers personalised content and processes millions of interactions daily (views, likes, shares, comments). Following Kimball's 4 steps (Process &rarr; Grain &rarr; Dimensions &rarr; Facts), it becomes <strong>one fact surrounded by five dimensions</strong>.</p>
+      <ul class="mt-3 space-y-1 list-disc list-inside text-sm">
+        <li><strong>Business process:</strong> user engagement with content.</li>
+        <li><strong>Grain (one fact row):</strong> a single user interaction with a post &mdash; one view, like, share, or comment.</li>
+        <li><strong>Fact:</strong> <code>user_action_fact</code> &mdash; 6 foreign keys + 2 measures.</li>
+        <li><strong>Dimensions:</strong> <code>date_dim</code>, <code>user_dim</code>, <code>post_dim</code>, <code>interaction_type_dim</code>, <code>device_dim</code>.</li>
+      </ul>
+      <div class="lay card mt-5 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm">The <strong>fact</strong> is the "activity log" (skinny &amp; tall &mdash; who did what to which post, when, on what device). The <strong>dimensions</strong> are the "address books" that turn the log's ID numbers into readable descriptions. One row of the fact = one tap/scroll event.</p>
+      </div>
+    </section>
+
+    <!-- ===== 2. SAMPLE DATA ===== -->
+    <section id="sample">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">2. Sample data (every dim + the fact)</h2>
+      <p class="mt-4">All rows below are self-consistent &mdash; you can trace any fact key back into each dimension.</p>
+
+      <div class="data card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-data">DIM 1 &mdash; date_dim</span> (the "when"; other dims point here via role-playing date keys)</p>
+        <table class="d">
+          <thead><tr><th>date_dim_sk</th><th>date</th><th>day</th><th>month</th><th>year</th><th>fiscal_year</th><th>fiscal_quarter</th><th>is_holiday</th><th>is_weekend</th><th>is_business_day</th></tr></thead>
+          <tbody>
+            <tr><td>20240720</td><td>2024-07-20</td><td>Saturday</td><td>July</td><td>2024</td><td>FY2025</td><td>Q3</td><td>N</td><td>Y</td><td>N</td></tr>
+            <tr><td>20240115</td><td>2024-01-15</td><td>Monday</td><td>January</td><td>2024</td><td>FY2024</td><td>Q1</td><td>N</td><td>N</td><td>Y</td></tr>
+            <tr><td>20241225</td><td>2024-12-25</td><td>Wednesday</td><td>December</td><td>2024</td><td>FY2025</td><td>Q4</td><td>Y</td><td>N</td><td>N</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="data card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-data">DIM 2 &mdash; user_dim</span> (the "who"; account_create_date_id &rarr; date_dim)</p>
+        <table class="d">
+          <thead><tr><th>user_dim_sk</th><th>user_id</th><th>user_name</th><th>email</th><th>account_create_date_id</th><th>status</th><th>user_type</th><th>profile_info</th></tr></thead>
+          <tbody>
+            <tr><td>501</td><td>U1001</td><td>jane_doe</td><td>jane@ex.com</td><td>20220310</td><td>active</td><td>verified</td><td>Photographer, NYC</td></tr>
+            <tr><td>502</td><td>U1002</td><td>mike_r</td><td>mike@ex.com</td><td>20230115</td><td>active</td><td>regular</td><td>Coffee lover</td></tr>
+            <tr><td>503</td><td>U1003</td><td>sara_k</td><td>sara@ex.com</td><td>20240115</td><td>suspended</td><td>regular</td><td>Traveler</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="data card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-data">DIM 3 &mdash; post_dim</span> (the "what"; user_dim_sk &rarr; author, post_create_date_id &rarr; date_dim)</p>
+        <table class="d">
+          <thead><tr><th>post_dim_sk</th><th>post_id</th><th>user_dim_sk</th><th>post_create_date_id</th><th>post_content</th><th>post_type</th><th>privacy_setting</th><th>language</th><th>category</th></tr></thead>
+          <tbody>
+            <tr><td>9001</td><td>P5001</td><td>501</td><td>20240720</td><td>Sunset over Brooklyn Bridge</td><td>image</td><td>public</td><td>en</td><td>photography</td></tr>
+            <tr><td>9002</td><td>P5002</td><td>502</td><td>20240720</td><td>Best espresso in town?</td><td>text</td><td>public</td><td>en</td><td>food</td></tr>
+            <tr><td>9003</td><td>P5003</td><td>501</td><td>20241225</td><td>Holiday travel vlog</td><td>video</td><td>friends</td><td>en</td><td>travel</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="data card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-data">DIM 4 &mdash; interaction_type_dim</span> (the "how" &mdash; tiny lookup)</p>
+        <table class="d">
+          <thead><tr><th>interaction_type_dim_sk</th><th>interaction_name</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>view</td></tr><tr><td>2</td><td>like</td></tr>
+            <tr><td>3</td><td>comment</td></tr><tr><td>4</td><td>share</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="data card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-data">DIM 5 &mdash; device_dim</span> (the "on what device")</p>
+        <table class="d">
+          <thead><tr><th>device_dim_sk</th><th>device_type</th><th>os</th><th>version</th><th>device_model</th></tr></thead>
+          <tbody>
+            <tr><td>11</td><td>mobile</td><td>iOS</td><td>17.4</td><td>iPhone 15 Pro</td></tr>
+            <tr><td>12</td><td>desktop</td><td>Windows</td><td>11</td><td>Dell XPS 15</td></tr>
+            <tr><td>13</td><td>tablet</td><td>Android</td><td>14</td><td>Samsung Galaxy Tab S9</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="data card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-data">THE FACT &mdash; user_action_fact</span> (6 FKs + measures interaction_timestamp &amp; duration)</p>
+        <table class="d">
+          <thead><tr><th>fact_sk</th><th>user_dim_sk</th><th>post_dim_sk</th><th>interaction_type_dim_sk</th><th>date_dim_sk</th><th>device_dim_sk</th><th>interaction_timestamp</th><th>duration</th></tr></thead>
+          <tbody>
+            <tr><td>100001</td><td>502</td><td>9001</td><td>1 (view)</td><td>20240720</td><td>11</td><td>2024-07-20 09:15:32</td><td>8</td></tr>
+            <tr><td>100002</td><td>502</td><td>9001</td><td>2 (like)</td><td>20240720</td><td>11</td><td>2024-07-20 09:15:45</td><td class="hl">NULL</td></tr>
+            <tr><td>100003</td><td>503</td><td>9001</td><td>1 (view)</td><td>20240720</td><td>12</td><td>2024-07-20 10:02:11</td><td>3</td></tr>
+            <tr><td>100004</td><td>503</td><td>9002</td><td>3 (comment)</td><td>20240720</td><td>12</td><td>2024-07-20 10:05:00</td><td class="hl">NULL</td></tr>
+            <tr><td>100005</td><td>501</td><td>9002</td><td>4 (share)</td><td>20240720</td><td>13</td><td>2024-07-20 11:30:00</td><td class="hl">NULL</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600"><strong>duration</strong> = view/dwell time in seconds. It's <code>NULL</code> for like/share/comment because those are instantaneous taps &mdash; there's no span to measure.</p>
+      </div>
+    </section>
+
+    <!-- ===== 3. DRILL ===== -->
+    <section id="drill">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">3. Drill-down trace (reading one fact row)</h2>
+      <p class="mt-4">Take fact row <code>100001</code> and follow each key into its dimension:</p>
+      <table class="d mt-2">
+        <thead><tr><th>Key on the fact</th><th>Lookup in dimension</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>user_dim_sk 502</td><td>user_dim</td><td>mike_r (regular, active)</td></tr>
+          <tr><td>post_dim_sk 9001</td><td>post_dim</td><td>"Sunset over Brooklyn Bridge" (image, by jane_doe)</td></tr>
+          <tr><td>interaction_type_dim_sk 1</td><td>interaction_type_dim</td><td>view</td></tr>
+          <tr><td>device_dim_sk 11</td><td>device_dim</td><td>iPhone 15 Pro (iOS)</td></tr>
+          <tr><td>date_dim_sk 20240720</td><td>date_dim</td><td>Sat, 20 Jul 2024 (weekend)</td></tr>
+        </tbody>
+      </table>
+      <div class="lay card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-lay">LAYMAN</span></p>
+        <p class="mt-2 text-sm">Every fact row reads as one sentence: <em>"On Saturday, Mike viewed Jane's Brooklyn Bridge photo on his iPhone for 8 seconds."</em> That is the whole point of a star schema &mdash; the fact is the verb, the dimensions are the adjectives.</p>
+      </div>
+    </section>
+
+    <!-- ===== 4. DESIGN QA ===== -->
+    <section id="design">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">4. Design Q&amp;A</h2>
+
+      <h3 class="text-lg font-bold text-blue100 mt-4">What does <code>duration</code> tell you?</h3>
+      <p class="text-sm mt-1">It's a <strong>measure</strong> (a numeric fact), not a key: the <strong>view/dwell time in seconds</strong>. A 1-second view is a scroll-past; a 45-second view means they actually read/watched. For like/share/comment there's no span, so it's <code>NULL</code> &mdash; and that's allowed (non-FK columns in a fact may be null; foreign keys must never be null).</p>
+      <div class="trap card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-trap">SMELL</span></p>
+        <p class="mt-2 text-sm">Cramming a "view duration" into a generic action fact where 3 of 4 interaction types can't use it means most rows carry a NULL measure. A purist might split views into their own fact. The article keeps them together for simplicity &mdash; a fair trade-off, just know <em>why</em> the NULLs exist.</p>
+      </div>
+
+      <h3 class="text-lg font-bold text-blue100 mt-5">Do we really need a separate <code>interaction_type_dim</code>?</h3>
+      <p class="text-sm mt-1">Judgment call &mdash; the classic "is this a degenerate dimension?" question.</p>
+      <table class="d mt-2">
+        <thead><tr><th>Keep the dimension because&hellip;</th><th>Or inline it (degenerate) because&hellip;</th></tr></thead>
+        <tbody>
+          <tr><td>"No free text in facts" &mdash; store the label once, not on every billion rows (saves space, prevents typos).</td><td>It has just ONE attribute and ~4 rows &mdash; a whole table for one column feels heavy.</td></tr>
+          <tr><td>Cheap to extend: add reaction_type, engagement_category, weight, icon &mdash; without touching the fact.</td><td>Fewer joins for such a tiny list.</td></tr>
+          <tr><td>Uniformity: every other descriptor is a dimension.</td><td>YAGNI &mdash; don't build for growth that may never come.</td></tr>
+        </tbody>
+      </table>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">RULE OF THUMB</span></p>
+        <p class="mt-2 text-sm">One attribute + never going to grow &rarr; <strong>degenerate dimension</strong> (inline it). One attribute today but likely to gain descriptors (reactions, weights, categories) &rarr; <strong>keep the small dimension</strong>. Interaction type almost always grows, so keeping it is the low-regret choice.</p>
+      </div>
+    </section>
+
+    <!-- ===== 5. DERIVE ===== -->
+    <section id="derive">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">5. Deriving a metric (the thought process)</h2>
+      <div class="mem card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-mem">THE ONE MENTAL MODEL</span></p>
+        <p class="mt-2 text-sm"><strong>Every metric = a NUMBER, at a GRAIN, over a FILTER.</strong></p>
+        <ul class="mt-2 text-sm space-y-1 list-disc list-inside">
+          <li><strong>NUMBER</strong> = what you measure + how you aggregate &rarr; <code>SELECT</code> aggregates</li>
+          <li><strong>GRAIN</strong> = "per what" it breaks down &rarr; <code>GROUP BY</code></li>
+          <li><strong>FILTER</strong> = which subset &rarr; <code>WHERE</code></li>
+        </ul>
+      </div>
+
+      <h3 class="text-lg font-bold text-blue100 mt-5">The 6-step recipe</h3>
+      <ol class="mt-2 space-y-2 list-decimal list-inside text-sm">
+        <li><strong>Restate precisely:</strong> "&lt;aggregation&gt; of &lt;thing&gt;, per &lt;grain&gt;, for &lt;filter&gt;."</li>
+        <li><strong>Nail the unit of the number:</strong> counting <em>events</em> (<code>COUNT(*)</code>) or <em>entities</em> (<code>COUNT(DISTINCT key)</code>) or summing an <em>amount</em> (<code>SUM</code>)?</li>
+        <li><strong>If it's a rate/average, split numerator &divide; denominator</strong> explicitly.</li>
+        <li><strong>Map to the star:</strong> measured quantity &rarr; fact; every "per/by/each" &rarr; a dimension (JOIN + GROUP BY); every "for &lt;condition&gt;" &rarr; WHERE.</li>
+        <li><strong>Assemble in logical order</strong> (FROM &rarr; WHERE &rarr; GROUP BY &rarr; SELECT aggregates &rarr; ORDER BY).</li>
+        <li><strong>Sanity-check:</strong> smell test, edge cases (NULLs, /0, ties), grain check, traps (100.0, distinct).</li>
+      </ol>
+
+      <h3 class="text-lg font-bold text-blue100 mt-5">English &rarr; SQL dictionary</h3>
+      <table class="d mt-2">
+        <thead><tr><th>English signal</th><th>SQL</th></tr></thead>
+        <tbody>
+          <tr><td>"how many"</td><td>COUNT(*)</td></tr>
+          <tr><td>"how many unique/distinct"</td><td>COUNT(DISTINCT &hellip;)</td></tr>
+          <tr><td>"total / sum of"</td><td>SUM(measure)</td></tr>
+          <tr><td>"average"</td><td>AVG(&hellip;) or explicit SUM/COUNT</td></tr>
+          <tr><td>"per X" / "by X" / "for each X"</td><td>GROUP BY X (+ JOIN its dim)</td></tr>
+          <tr><td>"% / share / rate / proportion"</td><td>ratio, usually &hellip; / SUM(&hellip;) OVER()</td></tr>
+          <tr><td>"top / most / biggest"</td><td>ORDER BY &hellip; DESC (+ LIMIT)</td></tr>
+          <tr><td>"over time / daily / trend"</td><td>GROUP BY date</td></tr>
+          <tr><td>"compare A vs B"</td><td>GROUP BY &lt;that dimension&gt;</td></tr>
+          <tr><td>"at least / more than N" (on a group)</td><td>HAVING</td></tr>
+          <tr><td>"within each X" (nested %)</td><td>OVER (PARTITION BY X)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ===== 6. NUM VS DEN ===== -->
+    <section id="numden">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">6. Numerator vs Denominator &mdash; the hack</h2>
+      <div class="mem card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-mem">THE HACK</span></p>
+        <p class="mt-2 text-sm">The word after <strong>"of"</strong> or <strong>"per"</strong> is the <strong>DENOMINATOR</strong> (the base / the whole / "out of what"). The <strong>NUMERATOR</strong> is the special subset.</p>
+      </div>
+      <table class="d mt-3">
+        <thead><tr><th>Question</th><th>after "of/per" &rarr; denominator</th><th>numerator</th></tr></thead>
+        <tbody>
+          <tr><td>% <strong>of viewers</strong> who engage</td><td>viewers</td><td>engaged viewers</td></tr>
+          <tr><td>% <strong>of posts</strong> that go viral</td><td>all posts</td><td>viral posts</td></tr>
+          <tr><td>interactions <strong>per user</strong></td><td>users</td><td>interactions</td></tr>
+          <tr><td>avg duration <strong>per view</strong></td><td>views</td><td>total duration</td></tr>
+          <tr><td>conversion rate (buyers <strong>of</strong> visitors)</td><td>visitors</td><td>buyers</td></tr>
+        </tbody>
+      </table>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">TWO SANITY CHECKS</span></p>
+        <ul class="mt-2 text-sm space-y-1 list-disc list-inside">
+          <li><strong>Subset test:</strong> numerator &sube; denominator, so the % must be &le; 100%. If it exceeds 100%, you flipped them (or have a data gap).</li>
+          <li><strong>Read aloud with units:</strong> it should sound natural as "&lt;numerator&gt; per &lt;denominator&gt;" (e.g. "2 interactions per 1 user" &mdash; correct; "1 user per 2 interactions" &mdash; flipped).</li>
+        </ul>
+      </div>
+      <div class="lay card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-lay">NO "of/per" IN THE SENTENCE?</span></p>
+        <p class="mt-2 text-sm">Ask: <strong>"this is a fraction OUT OF what total?"</strong> That total is the denominator. For percentages, the denominator is the number the parts add up to 100% against.</p>
+      </div>
+    </section>
+
+    <!-- ===== 7. AVG ===== -->
+    <section id="avg">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">7. Averages = SUM &divide; COUNT</h2>
+      <div class="mem card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-mem">CORE RULE</span></p>
+        <p class="mt-2 text-sm"><strong>An average is always SUM(top) &divide; COUNT(bottom).</strong> Numerator = SUM of the values; denominator = COUNT of the items. And the word after <strong>"per"</strong> is still the denominator.</p>
+      </div>
+      <table class="d mt-3">
+        <thead><tr><th>"average ___ per ___"</th><th>Numerator</th><th>Denominator</th></tr></thead>
+        <tbody>
+          <tr><td>avg duration per view</td><td>SUM(duration)</td><td>COUNT(views)</td></tr>
+          <tr><td>avg interactions per user</td><td>COUNT(interactions)</td><td>COUNT(DISTINCT user)</td></tr>
+          <tr><td>avg order value per order</td><td>SUM(amount)</td><td>COUNT(orders)</td></tr>
+        </tbody>
+      </table>
+      <p class="mt-3 text-sm font-semibold text-blue130">Two flavours:</p>
+      <ul class="mt-1 space-y-1 list-disc list-inside text-sm">
+        <li><strong>Built-in <code>AVG(x)</code></strong> = <code>SUM(x)/COUNT(x)</code> where <code>COUNT(x)</code> counts <em>non-NULL</em> values only.</li>
+        <li><strong>Manual <code>SUM / COUNT(DISTINCT&hellip;)</code></strong> when the denominator is an <em>entity</em> (per user/post), not table rows.</li>
+      </ul>
+      <div class="trap card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-trap">TWO TRAPS (both "wrong denominator")</span></p>
+        <ul class="mt-2 text-sm space-y-1 list-disc list-inside">
+          <li><strong>NULLs shrink the denominator.</strong> <code>AVG(duration)</code> on [8, NULL, 3, NULL, NULL] = 11/2 = <strong>5.5</strong> (divides by 2 non-nulls, not 5). Want NULL treated as 0? Use <code>AVG(COALESCE(duration,0))</code> or <code>SUM(duration)/COUNT(*)</code>.</li>
+          <li><strong>"Per entity" needs <code>COUNT(DISTINCT)</code>.</strong> Avg interactions per user = <code>COUNT(*) / COUNT(DISTINCT user)</code> = 5/3 = <strong>1.67</strong>, NOT plain AVG over rows.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===== 8. GRAIN ===== -->
+    <section id="grain">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">8. Choosing the grain (overall vs per-post vs &hellip;)</h2>
+      <p class="mt-4">Grain is a <strong>choice</strong>, not a property of the metric &mdash; same definition, just a different <code>GROUP BY</code>. Read the grain from the question's words:</p>
+      <table class="d mt-2">
+        <thead><tr><th>If the question contains&hellip;</th><th>Grain</th></tr></thead>
+        <tbody>
+          <tr><td>"per X", "by X", "for each X", "across X"</td><td>per X (GROUP BY X)</td></tr>
+          <tr><td>"which posts / users / devices&hellip;"</td><td>per that entity (+ ranking)</td></tr>
+          <tr><td>"over time / daily / trend"</td><td>per date</td></tr>
+          <tr><td><strong>none of the above</strong> &mdash; just "what % / how many / what's the rate"</td><td><strong>overall (one number)</strong></td></tr>
+        </tbody>
+      </table>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">HOW TO BE SURE</span></p>
+        <ol class="mt-2 text-sm space-y-1 list-decimal list-inside">
+          <li><strong>Signal words</strong> (table above) &mdash; absence of "per/by/each/which" &rarr; overall.</li>
+          <li><strong>Shape of the answer:</strong> one big KPI number &rarr; overall; a table/ranking &rarr; per-entity.</li>
+          <li><strong>The "so what" / decision:</strong> health KPI &rarr; overall; optimise specific items &rarr; breakdown.</li>
+          <li><strong>Still unsure? Confirm the grain before coding.</strong> Never infer it silently &mdash; wrong grain = perfect query, wrong answer.</li>
+        </ol>
+      </div>
+      <div class="trap card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-trap">BIG TRAP &mdash; non-additivity across grains</span></p>
+        <p class="mt-2 text-sm">You <strong>cannot</strong> average per-post percentages to get the overall percentage, and you can't sum <code>COUNT(DISTINCT user)</code> across groups. Distinct-counts and ratios are <strong>non-additive across grains</strong> &mdash; to change grain you <strong>recompute from the fact rows</strong>, never roll up the finer results. (Example: per-post gave 50% &amp; NULL; true overall was a totally different number.)</p>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">PRO PATTERN</span></p>
+        <p class="mt-2 text-sm">Deliver the <strong>headline (overall)</strong> that answers the literal question, then <strong>offer the drill-down</strong> (per post/device/segment) as the anticipated follow-up.</p>
+      </div>
+    </section>
+
+    <!-- ===== 9. PHASES ===== -->
+    <section id="phases">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">9. How SQL actually runs (logical phases)</h2>
+      <p class="mt-4">You <em>write</em> <code>SELECT&hellip;FROM&hellip;GROUP BY&hellip;ORDER BY</code>, but the engine <em>evaluates</em> in a fixed order. This explains how you can compute on a grouped result "on the fly."</p>
+      <table class="d mt-2">
+        <thead><tr><th>Phase</th><th>Clause</th><th>Produces</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>FROM / JOIN</td><td>combined rows (fact &#8904; dim)</td></tr>
+          <tr><td>2</td><td>WHERE</td><td>filtered raw rows</td></tr>
+          <tr><td>3</td><td><strong>GROUP BY + aggregates</strong></td><td><strong>one row per group, COUNT/SUM computed</strong></td></tr>
+          <tr><td>4</td><td>HAVING</td><td>filtered groups</td></tr>
+          <tr><td>5</td><td><strong>SELECT (incl. window functions)</strong></td><td><strong>window funcs run HERE, on the grouped rows</strong></td></tr>
+          <tr><td>6</td><td>ORDER BY</td><td>sorted output</td></tr>
+        </tbody>
+      </table>
+      <div class="lay card mt-4 p-4 rounded">
+        <p><span class="lbl lbl-lay">WHAT "ON THE FLY" MEANS</span></p>
+        <p class="mt-2 text-sm">Window functions live in <strong>phase 5</strong>, <em>after</em> <code>GROUP BY</code> collapsed millions of rows into a handful of grouped rows in phase 3. So yes &mdash; SQL genuinely computes a second layer of math on the already-grouped result. The big fact table is scanned <strong>once</strong>; the window pass then works on the tiny grouped set already in memory (no re-scan).</p>
+      </div>
+    </section>
+
+    <!-- ===== 10. WINDOW ===== -->
+    <section id="window">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">10. Window functions &amp; <code>OVER()</code></h2>
+
+      <h3 class="text-lg font-bold text-blue100 mt-4">Query A: "What are the most common user interactions?"</h3>
+      <p class="text-sm mt-1"><strong>What we're computing:</strong> a ranked leaderboard of interaction types (view / like / comment / share) with each one's <strong>raw count</strong> and its <strong>share (%) of all interactions</strong> &mdash; so you can see, e.g., "views are 40% of activity, likes 20%&hellip;"</p>
+<pre><span class="kw">SELECT</span> it.interaction_name,
+       <span class="kw">COUNT</span>(*) <span class="kw">AS</span> interaction_count,
+       <span class="kw">COUNT</span>(*) * <span class="st">100.0</span> / <span class="kw">SUM</span>(<span class="kw">COUNT</span>(*)) <span class="kw">OVER</span>() <span class="kw">AS</span> percentage
+<span class="kw">FROM</span>   user_action_fact uaf
+<span class="kw">JOIN</span>   interaction_type_dim it <span class="kw">ON</span> uaf.interaction_type_dim_sk = it.interaction_type_dim_sk
+<span class="kw">GROUP BY</span> it.interaction_name
+<span class="kw">ORDER BY</span> interaction_count <span class="kw">DESC</span>;</pre>
+      <p class="text-sm mt-2"><strong><code>SUM(COUNT(*)) OVER()</code> is a double aggregation:</strong> the inner <code>COUNT(*)</code> is the <em>group</em> aggregate (phase 3, gives [2,1,1,1]); the outer <code>SUM(&hellip;) OVER()</code> is a <em>window</em> aggregate over those grouped rows (phase 5) &mdash; it sums them to the grand total (5) and <strong>stamps that total onto every row without collapsing them</strong>.</p>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">RESULT on sample data</span> (total interactions = 5)</p>
+        <table class="d">
+          <thead><tr><th>interaction_name</th><th>interaction_count</th><th>percentage</th></tr></thead>
+          <tbody>
+            <tr><td>view</td><td>2</td><td>40.0</td></tr>
+            <tr><td>like</td><td>1</td><td>20.0</td></tr>
+            <tr><td>comment</td><td>1</td><td>20.0</td></tr>
+            <tr><td>share</td><td>1</td><td>20.0</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="text-lg font-bold text-blue100 mt-6">Query B: "When do users most actively engage with content?"</h3>
+      <p class="text-sm mt-1"><strong>What we're computing:</strong> activity by <strong>hour of day</strong> over the last 30 days &mdash; both total interactions and unique users per hour &mdash; to find peak engagement times (e.g. lunchtime, late-evening scrolling).</p>
+<pre><span class="kw">SELECT</span> <span class="kw">EXTRACT</span>(<span class="kw">HOUR FROM</span> uaf.interaction_timestamp) <span class="kw">AS</span> hour_of_day,
+       <span class="kw">COUNT</span>(*) <span class="kw">AS</span> interaction_count,
+       <span class="kw">COUNT</span>(<span class="kw">DISTINCT</span> uaf.user_dim_sk) <span class="kw">AS</span> unique_users
+<span class="kw">FROM</span>   user_action_fact uaf
+<span class="kw">JOIN</span>   date_dim d <span class="kw">ON</span> uaf.date_dim_sk = d.date_dim_sk
+<span class="kw">WHERE</span>  d.date &gt;= <span class="kw">CURRENT_DATE</span> - <span class="kw">INTERVAL</span> <span class="st">'30 days'</span>
+<span class="kw">GROUP BY</span> <span class="kw">EXTRACT</span>(<span class="kw">HOUR FROM</span> uaf.interaction_timestamp)
+<span class="kw">ORDER BY</span> interaction_count <span class="kw">DESC</span>;</pre>
+      <p class="text-sm mt-2"><strong>How it works:</strong> <code>EXTRACT(HOUR FROM &hellip;)</code> pulls just the 0&ndash;23 hour off the timestamp, and that becomes the grain (GROUP BY it). Note two different counts: <code>COUNT(*)</code> = total <em>events</em>; <code>COUNT(DISTINCT user_dim_sk)</code> = distinct <em>people</em> active that hour (so one power-user spamming at 2am doesn't fake a "peak"). The <code>WHERE d.date &gt;= CURRENT_DATE - INTERVAL '30 days'</code> is the <strong>FILTER</strong> &mdash; last 30 days only. Grain = per hour-of-day.</p>
+
+      <h3 class="text-lg font-bold text-blue100 mt-6">Query C: "Which posts generate the most engagement?"</h3>
+      <p class="text-sm mt-1"><strong>What we're computing:</strong> per post, a breakdown of <strong>views / likes / comments / shares</strong> in separate columns, keeping only posts above a minimum activity threshold &mdash; a content leaderboard.</p>
+<pre><span class="kw">SELECT</span> p.post_id, p.post_type, p.category,
+       <span class="kw">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> it.interaction_name = <span class="st">'view'</span>    <span class="kw">THEN</span> uaf.user_action_fact_sk <span class="kw">END</span>) <span class="kw">AS</span> views,
+       <span class="kw">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> it.interaction_name = <span class="st">'like'</span>    <span class="kw">THEN</span> uaf.user_action_fact_sk <span class="kw">END</span>) <span class="kw">AS</span> likes,
+       <span class="kw">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> it.interaction_name = <span class="st">'comment'</span> <span class="kw">THEN</span> uaf.user_action_fact_sk <span class="kw">END</span>) <span class="kw">AS</span> comments,
+       <span class="kw">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> it.interaction_name = <span class="st">'share'</span>   <span class="kw">THEN</span> uaf.user_action_fact_sk <span class="kw">END</span>) <span class="kw">AS</span> shares
+<span class="kw">FROM</span>   post_dim p
+<span class="kw">JOIN</span>   user_action_fact uaf <span class="kw">ON</span> p.post_dim_sk = uaf.post_dim_sk
+<span class="kw">JOIN</span>   interaction_type_dim it <span class="kw">ON</span> uaf.interaction_type_dim_sk = it.interaction_type_dim_sk
+<span class="kw">GROUP BY</span> p.post_id, p.post_type, p.category
+<span class="kw">HAVING</span> <span class="kw">COUNT</span>(*) &gt; <span class="st">100</span>   <span class="cm">-- minimum engagement threshold</span>
+<span class="kw">ORDER BY</span> views <span class="kw">DESC</span>;</pre>
+      <p class="text-sm mt-2"><strong>How it works:</strong> this is <strong>conditional aggregation</strong> (the same trick from the "% of viewers" example) &mdash; each <code>COUNT(DISTINCT CASE WHEN &hellip; END)</code> counts only the rows matching that interaction type, giving one column per metric in a single pass. The <code>HAVING COUNT(*) &gt; 100</code> filters <em>after</em> grouping (it's a filter on the aggregate, which <code>WHERE</code> can't do) to drop low-signal posts. Grain = per post.</p>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">WHERE vs HAVING</span></p>
+        <p class="mt-2 text-sm"><code>WHERE</code> filters <strong>raw rows before grouping</strong> (e.g. last 30 days). <code>HAVING</code> filters <strong>groups after aggregation</strong> (e.g. only posts with &gt;100 interactions). You can't put an aggregate like <code>COUNT(*) &gt; 100</code> in <code>WHERE</code> &mdash; the count doesn't exist yet at that phase (remember the phase order: WHERE=2, GROUP BY=3, HAVING=4).</p>
+      </div>
+
+      <h3 class="text-lg font-bold text-blue100 mt-6">Back to the window function &mdash; blank <code>OVER()</code></h3>
+      <p class="text-sm mt-1">Empty <code>OVER()</code> has three missing pieces, each with a default:</p>
+      <table class="d mt-2">
+        <thead><tr><th>Missing</th><th>Default</th></tr></thead>
+        <tbody>
+          <tr><td>PARTITION BY</td><td>no partitioning &rarr; the WHOLE result is one group (all rows)</td></tr>
+          <tr><td>ORDER BY</td><td>no ordering</td></tr>
+          <tr><td>frame</td><td>the ENTIRE partition</td></tr>
+        </tbody>
+      </table>
+      <p class="text-sm mt-2">So blank <code>OVER()</code> = "every row as one group" = equivalent to:</p>
+<pre><span class="kw">SUM</span>(<span class="kw">COUNT</span>(*)) <span class="kw">OVER</span> (<span class="kw">ROWS BETWEEN</span> <span class="kw">UNBOUNDED PRECEDING</span> <span class="kw">AND</span> <span class="kw">UNBOUNDED FOLLOWING</span>)</pre>
+      <p class="text-sm mt-2">It's <strong>unbounded both directions</strong> (all rows), not a fixed "n preceding/following." A sliding window would be <code>ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING</code> (that's for moving averages).</p>
+
+      <div class="trap card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-trap">THE FRAME GOTCHA &mdash; adding ORDER BY changes everything</span></p>
+        <p class="mt-2 text-sm">The default frame flips depending on ORDER BY:</p>
+        <table class="d mt-2">
+          <thead><tr><th>row (cnt)</th><th>SUM OVER () &mdash; blank</th><th>SUM OVER (ORDER BY cnt DESC)</th></tr></thead>
+          <tbody>
+            <tr><td>view (2)</td><td>5</td><td>2</td></tr>
+            <tr><td>like (1)</td><td>5</td><td>3</td></tr>
+            <tr><td>comment (1)</td><td>5</td><td>4</td></tr>
+            <tr><td>share (1)</td><td>5</td><td>5</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-sm">Blank = <strong>grand total everywhere</strong>. Add <code>ORDER BY</code> and the frame silently becomes "UNBOUNDED PRECEDING &hellip; CURRENT ROW" &rarr; you get a <strong>running total</strong> instead. The percentage query needs the constant total, so it keeps <code>OVER()</code> blank.</p>
+      </div>
+
+      <h3 class="text-lg font-bold text-blue100 mt-5">What if you remove <code>OVER()</code>?</h3>
+      <p class="text-sm mt-1"><code>SUM(COUNT(*))</code> without <code>OVER()</code> is a <strong>nested aggregate</strong> at the same level:</p>
+      <ul class="mt-1 space-y-1 list-disc list-inside text-sm">
+        <li><strong>Postgres / SQL Server / MySQL / BigQuery / Snowflake</strong> &rarr; hard error ("aggregate function calls cannot be nested").</li>
+        <li><strong>Oracle</strong> &rarr; permits it but collapses to a single grand-total row, which then clashes with the per-group columns (<code>ORA-00937: not a single-group group function</code>).</li>
+      </ul>
+      <p class="text-sm mt-2"><code>OVER()</code> is what <strong>legalises</strong> the double aggregation while keeping your per-group rows. Without a window you'd need a subquery: <code>&hellip; / (SELECT COUNT(*) FROM user_action_fact) * 100.0</code> &mdash; but that scans the table twice.</p>
+
+      <h3 class="text-lg font-bold text-blue100 mt-5">When the window is NOT blank &mdash; <code>PARTITION BY</code></h3>
+      <p class="text-sm mt-1">Add <code>PARTITION BY X</code> to compute "% <em>within each</em> X" (e.g. share of interactions within each device, or within each day). The total then resets per partition, so percentages sum to 100% <em>within</em> each group.</p>
+    </section>
+
+    <!-- ===== 11. 100.0 ===== -->
+    <section id="hundred">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">11. The magic of <code>100.0</code></h2>
+      <p class="mt-4">In SQL, the type of a division depends on its operands: <strong>integer &divide; integer = integer</strong> (the fraction is <em>truncated</em>, not rounded). <code>COUNT(*)</code> and <code>SUM(&hellip;)</code> return integers, so a naive percentage silently breaks.</p>
+      <div class="trap card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-trap">THE BUG</span></p>
+        <p class="mt-2 text-sm"><code>COUNT(*) / SUM(...) OVER()</code> with views=2, total=5 &rarr; <code>2/5</code> floors to <strong>0</strong>. Every percentage becomes 0. Ouch.</p>
+      </div>
+      <p class="text-sm mt-3"><strong>The fix &mdash; type promotion.</strong> The literal <code>100.0</code> is a decimal, so it "infects" the expression with decimal type <em>before</em> the division:</p>
+<pre><span class="cm">-- runs left to right: ( COUNT(*) * 100.0 ) / total</span>
+<span class="kw">COUNT</span>(*) * <span class="st">100.0</span> / <span class="kw">SUM</span>(<span class="kw">COUNT</span>(*)) <span class="kw">OVER</span>()
+<span class="cm">-- 2 * 100.0 = 200.0 (decimal) ; 200.0 / 5 = 40.0  correct!</span></pre>
+      <div class="trap card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-trap">ORDER MATTERS &mdash; the trap within the trap</span></p>
+        <table class="d mt-2">
+          <thead><tr><th>expression</th><th>views (2/5)</th></tr></thead>
+          <tbody>
+            <tr><td>COUNT(*) * 100.0 / total <span class="text-green-700">(good: multiply first)</span></td><td>200.0/5 = <strong>40.0</strong></td></tr>
+            <tr><td>COUNT(*) / total * 100.0 <span class="text-red-700">(bad: divide first)</span></td><td>0 * 100.0 = <strong>0.0</strong></td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-sm">Multiply by <code>100.0</code> <strong>before</strong> the division, or the integer division already destroyed the fraction.</p>
+      </div>
+      <p class="text-sm mt-3"><strong>Equivalents:</strong> <code>CAST(x AS DECIMAL)</code>, <code>x::numeric</code> (Postgres), or <code>* 1.0</code>. <strong>Tidy output:</strong> wrap in <code>ROUND(&hellip;, 2)</code>.</p>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">ONE-LINER</span></p>
+        <p class="mt-2 text-sm"><code>100.0</code> (not <code>100</code>) sneaks a decimal into the math <em>before</em> the division, dodging integer-division truncation &mdash; and it must come <em>before</em> the <code>/</code>. MySQL/SQLite are lenient; Postgres/SQL Server/Oracle are not &mdash; so always write <code>100.0</code>.</p>
+      </div>
+    </section>
+
+    <!-- ===== 12. NULLS ===== -->
+    <section id="nulls">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">12. <code>NULLIF</code>, divide-by-zero &amp; NULL handling</h2>
+
+      <h3 class="text-lg font-bold text-blue100 mt-4">Guarding division with <code>NULLIF</code></h3>
+      <p class="text-sm mt-1"><code>NULLIF(a, b)</code> returns <strong>NULL if a = b</strong>, else <code>a</code>. So <code>NULLIF(denom, 0)</code> turns a zero denominator into NULL, and the division yields <strong>NULL</strong> instead of a divide-by-zero crash.</p>
+<pre><span class="cm">-- viewers = 0, engagers = 2</span>
+engagers * <span class="st">100.0</span> / <span class="kw">NULLIF</span>(viewers, <span class="st">0</span>)
+<span class="cm">= 2 * 100.0 / NULLIF(0,0)   -- NULLIF(0,0) = NULL</span>
+<span class="cm">= 200.0 / NULL              -- any math with NULL = NULL</span>
+<span class="cm">= NULL                       (not a crash, not 0)</span></pre>
+      <div class="lay card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-lay">WHY NULL IS THE RIGHT ANSWER</span></p>
+        <p class="mt-2 text-sm">"% of viewers" is genuinely <em>undefined</em> when there are zero viewers (it's 0/0). NULL honestly says "can't compute / not applicable" &mdash; better than a fake <code>0%</code> ("measured, no engagement") or a misleading <code>100%</code>. <strong>NULL = undefined; 0 = measured and it's zero.</strong> Don't blur them.</p>
+      </div>
+      <p class="text-sm mt-3">Want to display something instead of NULL? Wrap with <code>COALESCE</code>: <code>COALESCE(&hellip;, 0)</code> shows 0, <code>COALESCE(&hellip;, 'N/A')</code> shows text &mdash; but choose deliberately.</p>
+
+      <h3 class="text-lg font-bold text-blue100 mt-5">How aggregates treat NULLs (each differently!)</h3>
+      <table class="d mt-2">
+        <thead><tr><th>Function</th><th>NULL behaviour</th></tr></thead>
+        <tbody>
+          <tr><td><code>COUNT(*)</code></td><td>counts ALL rows, including those with NULLs</td></tr>
+          <tr><td><code>COUNT(col)</code></td><td>counts only NON-NULL values of col</td></tr>
+          <tr><td><code>SUM(col)</code> / <code>AVG(col)</code></td><td>ignore NULLs (AVG divides by non-null count)</td></tr>
+          <tr><td><code>COUNT(DISTINCT col)</code></td><td>ignores NULLs; counts distinct non-null values</td></tr>
+        </tbody>
+      </table>
+      <div class="trap card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-trap">CLASSIC MISREAD</span></p>
+        <p class="mt-2 text-sm"><code>AVG(duration)</code> over [8, NULL, 3, NULL, NULL] = <strong>5.5</strong> (11 &divide; 2 non-nulls), NOT 2.2. If you expected NULL to mean 0, you got the wrong denominator. Use <code>AVG(COALESCE(duration,0))</code> or <code>SUM(duration)/COUNT(*)</code>.</p>
+      </div>
+    </section>
+
+    <!-- ===== 13. EXAMPLE ===== -->
+    <section id="example">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">13. Worked example &mdash; "% of viewers who engage beyond just viewing?"</h2>
+
+      <p class="mt-4"><strong>Step 1 &mdash; precise definition (engaged viewers &divide; ALL viewers):</strong></p>
+      <ul class="mt-1 space-y-1 list-disc list-inside text-sm">
+        <li><strong>Denominator</strong> = distinct users who <em>viewed</em> (the whole viewer pool &mdash; NOT just the passive ones).</li>
+        <li><strong>Numerator</strong> = distinct viewers who <em>also</em> did a non-view interaction (like/share/comment).</li>
+      </ul>
+      <div class="trap card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-trap">DENOMINATOR TRAP</span></p>
+        <p class="mt-2 text-sm">"% of viewers" &rarr; denominator = <strong>ALL viewers</strong> (engaged + passive), giving engaged/100. It is NOT engaged &divide; passive-only (that's an odds ratio, a different metric). 100 viewers, 30 engaged &rarr; <strong>30%</strong>, not 30/70 = 43%.</p>
+      </div>
+
+      <p class="mt-4"><strong>Step 4 &mdash; the key technique: conditional aggregation</strong> (<code>COUNT(DISTINCT CASE WHEN &hellip; END)</code>) gives numerator and denominator from the same rows in one pass. <code>CASE</code> returns the key when matched else NULL, and <code>COUNT(DISTINCT)</code> ignores NULLs.</p>
+
+      <p class="mt-4 font-semibold text-blue130">Per-post version:</p>
+<pre><span class="kw">SELECT</span> p.post_id,
+  <span class="kw">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> it.interaction_name = <span class="st">'view'</span>  <span class="kw">THEN</span> uaf.user_dim_sk <span class="kw">END</span>) <span class="kw">AS</span> viewers,
+  <span class="kw">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> it.interaction_name &lt;&gt; <span class="st">'view'</span> <span class="kw">THEN</span> uaf.user_dim_sk <span class="kw">END</span>) <span class="kw">AS</span> engagers,
+  <span class="kw">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> it.interaction_name &lt;&gt; <span class="st">'view'</span> <span class="kw">THEN</span> uaf.user_dim_sk <span class="kw">END</span>) * <span class="st">100.0</span>
+     / <span class="kw">NULLIF</span>(<span class="kw">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> it.interaction_name = <span class="st">'view'</span> <span class="kw">THEN</span> uaf.user_dim_sk <span class="kw">END</span>), <span class="st">0</span>) <span class="kw">AS</span> pct_engaged
+<span class="kw">FROM</span> user_action_fact uaf
+<span class="kw">JOIN</span> interaction_type_dim it <span class="kw">ON</span> uaf.interaction_type_dim_sk = it.interaction_type_dim_sk
+<span class="kw">JOIN</span> post_dim p <span class="kw">ON</span> uaf.post_dim_sk = p.post_dim_sk
+<span class="kw">GROUP BY</span> p.post_id
+<span class="kw">ORDER BY</span> pct_engaged <span class="kw">DESC</span>;</pre>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">RESULT (per post)</span></p>
+        <table class="d">
+          <thead><tr><th>post_id</th><th>viewers</th><th>engagers</th><th>pct_engaged</th></tr></thead>
+          <tbody>
+            <tr><td>P5001</td><td>2</td><td>1</td><td>50.0</td></tr>
+            <tr><td>P5002</td><td>0</td><td>2</td><td class="hl">NULL</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">P5001 = clean 50%. P5002 = 0 viewers but 2 engagers &rarr; NULLIF prevented a /0 crash &rarr; NULL. P5003 has no interactions so it doesn't appear (a GROUP BY only sees existing rows; LEFT JOIN from post_dim to show it as 0).</p>
+      </div>
+
+      <p class="mt-4 font-semibold text-blue130">Overall version (the literal answer &mdash; drop GROUP BY &amp; post_dim):</p>
+<pre><span class="kw">SELECT</span>
+  <span class="kw">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> it.interaction_name = <span class="st">'view'</span>  <span class="kw">THEN</span> uaf.user_dim_sk <span class="kw">END</span>) <span class="kw">AS</span> viewers,
+  <span class="kw">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> it.interaction_name &lt;&gt; <span class="st">'view'</span> <span class="kw">THEN</span> uaf.user_dim_sk <span class="kw">END</span>) <span class="kw">AS</span> engagers,
+  <span class="kw">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> it.interaction_name &lt;&gt; <span class="st">'view'</span> <span class="kw">THEN</span> uaf.user_dim_sk <span class="kw">END</span>) * <span class="st">100.0</span>
+     / <span class="kw">NULLIF</span>(<span class="kw">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> it.interaction_name = <span class="st">'view'</span> <span class="kw">THEN</span> uaf.user_dim_sk <span class="kw">END</span>), <span class="st">0</span>) <span class="kw">AS</span> pct_engaged
+<span class="kw">FROM</span> user_action_fact uaf
+<span class="kw">JOIN</span> interaction_type_dim it <span class="kw">ON</span> uaf.interaction_type_dim_sk = it.interaction_type_dim_sk;</pre>
+      <p class="text-sm mt-2">On sample data: viewers = {502,503} = 2, engagers = {501,502,503} = 3 &rarr; <strong>150%</strong> (user 501 shared but never viewed &mdash; the data gap again). Strict "viewed AND engaged" = 100%. This is why <strong>overall &ne; average of per-post</strong> (per-post gave 50% &amp; NULL).</p>
+    </section>
+
+    <!-- ===== 14. ENGAGE VS SHARE ===== -->
+    <section id="engage">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">14. Engagement vs Share (mobile vs desktop)</h2>
+      <p class="mt-4">"Are users more engaged on mobile vs desktop?" is <strong>not</strong> answered by device <em>share</em> of interactions. They measure different things:</p>
+      <table class="d mt-2">
+        <thead><tr><th>Metric</th><th>Tells you</th><th>Question it answers</th></tr></thead>
+        <tbody>
+          <tr><td>% share of interactions</td><td>volume distribution</td><td>"Where does most activity come from?" (reach)</td></tr>
+          <tr><td>avg interactions per user + avg duration</td><td>per-person intensity</td><td>"Are users more engaged on X?" (engagement)</td></tr>
+        </tbody>
+      </table>
+      <div class="trap card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-trap">WHERE THEY DISAGREE</span></p>
+        <p class="mt-2 text-sm">Mobile: 1,000 users &times; 2 = 2,000 interactions. Desktop: 100 users &times; 20 = 2,000 interactions. <strong>By share</strong> they tie (50/50). <strong>By per-user engagement</strong> desktop is 10&times; more engaged (20 vs 2). Share is confounded by how many users are on each device &mdash; so for "engagement," always <strong>normalise per user</strong> (divide by <code>COUNT(DISTINCT user)</code>).</p>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">REMEMBER</span></p>
+        <p class="mt-2 text-sm"><strong>Share = volume/reach</strong> ("where activity happens"). <strong>Per-user averages = engagement</strong> ("how hard each person leans in"). For "more engaged," normalise per user &mdash; share alone can point the opposite way.</p>
+      </div>
+    </section>
+
+    <!-- ===== 15. DATA GAP ===== -->
+    <section id="gap">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">15. The data-gap insight (separate events)</h2>
+      <p class="mt-4">The fact grain is <strong>one row per interaction, per type</strong> &mdash; a view is its own row, a like is a separate row. Liking a post does <em>not</em> auto-create a view row. So a post can show engagement with <strong>zero view rows</strong>.</p>
+      <div class="lay card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-lay">WHAT "0 VIEWERS" REALLY MEANS</span></p>
+        <p class="mt-2 text-sm">It does <strong>not</strong> mean "everyone engaged." In reality you <em>cannot</em> like/share/comment a post you never saw &mdash; engagement <strong>implies</strong> a view. So "engagement but no view rows" = <strong>the view events weren't logged</strong> (a data gap), not that there were no viewers.</p>
+      </div>
+      <p class="text-sm mt-3"><strong>The robust fix:</strong> since engaging proves a view happened, define <em>viewers = distinct users with ANY interaction</em> (view OR engage), not just the <code>'view'</code> rows:</p>
+<pre><span class="kw">COUNT</span>(<span class="kw">DISTINCT</span> uaf.user_dim_sk) <span class="kw">AS</span> viewers  <span class="cm">-- ANY interaction => they saw it</span></pre>
+      <div class="data card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-data">RESULT with the robust denominator</span></p>
+        <table class="d">
+          <thead><tr><th>post</th><th>viewers (any interaction)</th><th>engagers</th><th>pct_engaged</th></tr></thead>
+          <tbody>
+            <tr><td>P5001</td><td>2</td><td>1</td><td>50%</td></tr>
+            <tr><td>P5002</td><td>2</td><td>2</td><td>100%</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-xs text-gray-600">No more NULL, no more &gt;100%. This definition is immune to missing view rows.</p>
+      </div>
+      <div class="mem card mt-3 p-4 rounded">
+        <p><span class="lbl lbl-mem">TAKEAWAY</span></p>
+        <p class="mt-2 text-sm">Because interactions are stored as separate events, a missing <code>view</code> row means missing data, not "no viewers." Since engaging implies viewing, "viewers = anyone who interacted" makes the metric robust. Bigger lesson: <strong>always ask whether the data faithfully represents reality</strong> &mdash; that's modelling, not just querying.</p>
+      </div>
+    </section>
+
+    <!-- ===== 16. QUICK REF ===== -->
+    <section id="quick">
+      <h2 class="text-2xl font-bold text-blue130 border-b-2 border-spark pb-2">16. Quick reference (everything on one screen)</h2>
+      <table class="d mt-2">
+        <thead><tr><th>Topic</th><th>The trick / rule</th></tr></thead>
+        <tbody>
+          <tr><td>Metric shape</td><td>NUMBER + GRAIN + FILTER = SELECT-agg + GROUP BY + WHERE</td></tr>
+          <tr><td>Numerator vs denominator</td><td>word after "of"/"per" = denominator (the whole); numerator = subset; % must be &le; 100%</td></tr>
+          <tr><td>Average</td><td>SUM(top) &divide; COUNT(bottom); "per entity" &rarr; COUNT(DISTINCT); AVG ignores NULLs</td></tr>
+          <tr><td>Events vs entities</td><td>COUNT(*) = events; COUNT(DISTINCT key) = people/posts</td></tr>
+          <tr><td>Grain</td><td>read "per/by/each/which"; none &rarr; overall; confirm before coding</td></tr>
+          <tr><td>Non-additivity</td><td>never average % or sum DISTINCT across grains &mdash; recompute from fact rows</td></tr>
+          <tr><td>SQL phases</td><td>FROM &rarr; WHERE &rarr; GROUP BY &rarr; SELECT (window funcs) &rarr; ORDER BY</td></tr>
+          <tr><td>SUM(COUNT(*)) OVER()</td><td>double aggregation; window pass stamps the grand total on every group row</td></tr>
+          <tr><td>Blank OVER()</td><td>whole partition, unbounded both ways (grand total); add ORDER BY &rarr; running total</td></tr>
+          <tr><td>Remove OVER()</td><td>nested aggregate &rarr; error (most DBs) / single-row collapse (Oracle)</td></tr>
+          <tr><td>PARTITION BY</td><td>"% within each X"; total resets per partition</td></tr>
+          <tr><td>100.0</td><td>forces decimal division; multiply BEFORE dividing; else integer truncation</td></tr>
+          <tr><td>NULLIF(denom,0)</td><td>turns /0 into NULL (undefined) instead of a crash</td></tr>
+          <tr><td>COALESCE</td><td>substitute a display value for NULL &mdash; but 0 &ne; NULL in meaning</td></tr>
+          <tr><td>NULL in aggregates</td><td>COUNT(*) keeps them; COUNT(col)/SUM/AVG/COUNT(DISTINCT) drop them</td></tr>
+          <tr><td>Conditional aggregation</td><td>COUNT(DISTINCT CASE WHEN cond THEN key END) = numerator &amp; denominator in one pass</td></tr>
+          <tr><td>Engagement vs share</td><td>share = reach/volume; engagement = per-user intensity</td></tr>
+          <tr><td>Data gaps</td><td>engagement implies a view; missing view rows = data gap, not "no viewers"</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer class="pt-8 border-t border-gray-200 text-sm text-gray-500">
+      <p>Companion to the Dimensional Modelling cheat-sheet. Model based on "Designing a Data Model for a NewsFeed Platform" (Kimball methodology). Sample data is illustrative.</p>
+    </footer>
+
+  </main>
+</div>
+
+</body>
+</html>
