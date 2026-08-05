@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Server Functions Reference (Beyond Dates)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html { scroll-behavior: smooth; }
+  pre { color: #d4d4d4; }
+  pre code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; color: #d4d4d4; }
+  .kw { color: #c586c0; }
+  .fn { color: #dcdcaa; }
+  .st { color: #ce9178; }
+  .nu { color: #b5cea8; }
+  .cm { color: #6a9955; font-style: italic; }
+  .tbl-scroll::-webkit-scrollbar { height: 8px; }
+  .tbl-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  .badge { font-size: 0.7rem; padding: 0.1rem 0.5rem; border-radius: 9999px; font-weight: 600; }
+  table td, table th { vertical-align: top; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased">
+
+<header class="bg-gradient-to-r from-blue-700 via-indigo-700 to-violet-700 text-white">
+  <div class="max-w-6xl mx-auto px-6 py-14">
+    <p class="uppercase tracking-widest text-indigo-200 text-sm font-semibold">SQL Server &middot; T-SQL Reference</p>
+    <h1 class="text-4xl md:text-5xl font-extrabold mt-2">Functions Reference - Beyond Dates</h1>
+    <p class="mt-4 text-lg text-indigo-100 max-w-3xl">
+      The standard SQL Server functions you actually use - NULLs, conditionals, strings, aggregates, math,
+      rounding/formatting, type conversion, and operators. Tight examples, clear tables, and the edge cases that bite.
+    </p>
+    <div class="mt-6 flex flex-wrap gap-2 text-sm">
+      <span class="bg-white/15 rounded-full px-3 py-1">NULL handling</span>
+      <span class="bg-white/15 rounded-full px-3 py-1">Strings</span>
+      <span class="bg-white/15 rounded-full px-3 py-1">Aggregates</span>
+      <span class="bg-white/15 rounded-full px-3 py-1">Math &amp; rounding</span>
+      <span class="bg-white/15 rounded-full px-3 py-1">Conversion</span>
+      <span class="bg-white/15 rounded-full px-3 py-1">Operators</span>
+    </div>
+  </div>
+</header>
+
+<nav class="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-200 shadow-sm">
+  <div class="max-w-6xl mx-auto px-6 py-3 flex flex-wrap gap-x-5 gap-y-1 text-sm font-medium text-indigo-700">
+    <a href="#null" class="hover:underline">NULLs</a>
+    <a href="#conditional" class="hover:underline">Conditionals</a>
+    <a href="#string" class="hover:underline">Strings</a>
+    <a href="#aggregate" class="hover:underline">Aggregates</a>
+    <a href="#math" class="hover:underline">Math</a>
+    <a href="#rounding" class="hover:underline">Rounding &amp; Formatting</a>
+    <a href="#convert" class="hover:underline">Conversion</a>
+    <a href="#operators" class="hover:underline">Operators</a>
+    <a href="#sets" class="hover:underline">Set Ops &amp; APPLY</a>
+    <a href="#json" class="hover:underline">JSON</a>
+    <a href="#ansi" class="hover:underline">ANSI Map</a>
+    <a href="#gotchas" class="hover:underline">Gotchas</a>
+  </div>
+</nav>
+
+<main class="max-w-6xl mx-auto px-6 py-10 space-y-14">
+
+<div class="flex flex-wrap items-center gap-3 text-sm">
+  <span class="text-slate-500 font-medium">Legend:</span>
+  <span class="badge bg-emerald-100 text-emerald-800">ANSI (portable)</span>
+  <span class="badge bg-blue-100 text-blue-800">SQL Server only</span>
+  <span class="badge bg-amber-100 text-amber-800">gotcha nearby</span>
+</div>
+
+<!-- ============ NULL ============ -->
+<section id="null">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">1. NULL handling</h2>
+  <p class="text-slate-700 mb-5"><code>COALESCE</code>, <code>ISNULL</code>, <code>NULLIF</code> - replace NULLs and dodge divide-by-zero.</p>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="fn">COALESCE</span>(a, b, c, ...)   <span class="cm">-- first non-NULL (ANSI, 2+ args)</span>
+<span class="fn">COALESCE</span>(<span class="kw">NULL</span>, <span class="kw">NULL</span>, <span class="nu">5</span>)   <span class="cm">-- 5</span>
+
+<span class="fn">ISNULL</span>(expr, replacement)   <span class="cm">-- SQL Server only, exactly 2 args</span>
+<span class="fn">ISNULL</span>(<span class="kw">NULL</span>, <span class="nu">0</span>)           <span class="cm">-- 0</span>
+
+<span class="fn">NULLIF</span>(a, b)               <span class="cm">-- NULL if a = b, else a</span>
+<span class="fn">NULLIF</span>(<span class="nu">0</span>, <span class="nu">0</span>)             <span class="cm">-- NULL</span>
+
+<span class="cm">-- Safe division (the #1 use of NULLIF):</span>
+<span class="fn">ISNULL</span>(<span class="nu">100</span> / <span class="fn">NULLIF</span>(divisor, <span class="nu">0</span>), <span class="nu">0</span>)   <span class="cm">-- 0 instead of a divide-by-zero error</span></code></pre>
+  </div>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="overflow-x-auto tbl-scroll">
+      <table class="w-full text-sm border border-slate-200 rounded-lg bg-white">
+        <thead class="bg-slate-100"><tr><th class="px-3 py-2 text-left"></th><th class="px-3 py-2 text-left">ISNULL(a,b)</th><th class="px-3 py-2 text-left">COALESCE(a,b,...)</th></tr></thead>
+        <tbody class="divide-y divide-slate-100">
+          <tr><td class="px-3 py-1.5 font-semibold">Standard</td><td class="px-3 py-1.5">SQL Server</td><td class="px-3 py-1.5">ANSI</td></tr>
+          <tr><td class="px-3 py-1.5 font-semibold">Args</td><td class="px-3 py-1.5">exactly 2</td><td class="px-3 py-1.5">2 or more</td></tr>
+          <tr><td class="px-3 py-1.5 font-semibold">Return type</td><td class="px-3 py-1.5">type of 1st arg</td><td class="px-3 py-1.5">highest-precedence type</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
+      <strong>Type pitfall:</strong> <code>ISNULL</code> forces the first arg's type.
+      <code>ISNULL(CAST(NULL AS VARCHAR(3)), 'hello world')</code> returns <code>'hel'</code> (truncated!).
+      <code>COALESCE(...)</code> picks the wider type and returns <code>'hello world'</code>. Default to <strong>COALESCE</strong>.
+    </div>
+  </div>
+</section>
+
+<!-- ============ CONDITIONAL ============ -->
+<section id="conditional">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">2. Conditional logic</h2>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="cm">-- Searched CASE (ANSI, any number of conditions):</span>
+<span class="kw">CASE</span>
+    <span class="kw">WHEN</span> score &gt;= <span class="nu">90</span> <span class="kw">THEN</span> <span class="st">'A'</span>
+    <span class="kw">WHEN</span> score &gt;= <span class="nu">80</span> <span class="kw">THEN</span> <span class="st">'B'</span>
+    <span class="kw">ELSE</span> <span class="st">'F'</span>
+<span class="kw">END</span>
+
+<span class="cm">-- IIF (SQL Server only) - 2 branches, shorthand for CASE:</span>
+<span class="fn">IIF</span>(amount &gt; <span class="nu">0</span>, <span class="st">'credit'</span>, <span class="st">'debit'</span>)
+
+<span class="cm">-- CHOOSE (SQL Server) - 1-based pick from a list:</span>
+<span class="fn">CHOOSE</span>(<span class="nu">2</span>, <span class="st">'Low'</span>, <span class="st">'Med'</span>, <span class="st">'High'</span>)    <span class="cm">-- 'Med'</span>
+
+<span class="cm">-- Conditional aggregation (pivoting) - the killer pattern:</span>
+<span class="fn">SUM</span>(<span class="kw">CASE WHEN</span> category = <span class="st">'A'</span> <span class="kw">THEN</span> amount <span class="kw">ELSE</span> <span class="nu">0</span> <span class="kw">END</span>) <span class="kw">AS</span> category_a</code></pre>
+  </div>
+  <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 text-sm text-sky-900">
+    <strong>CASE evaluates top-to-bottom and stops at the first match</strong> - order your <code>WHEN</code>s from most specific to least.
+    <code>IIF</code>/<code>CHOOSE</code> are SQL-Server-only sugar; <code>CASE</code> is the portable workhorse.
+  </div>
+</section>
+
+<!-- ============ STRING ============ -->
+<section id="string">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">3. String functions</h2>
+  <div class="overflow-x-auto tbl-scroll mb-4">
+    <table class="w-full text-sm border border-slate-200 rounded-lg bg-white">
+      <thead class="bg-slate-100"><tr>
+        <th class="px-3 py-2 text-left">Function</th><th class="px-3 py-2 text-left">Purpose</th><th class="px-3 py-2 text-left">Example -&gt; result</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5 font-mono">LEN(s)</td><td class="px-3 py-1.5">Length, ignores trailing spaces</td><td class="px-3 py-1.5 font-mono">LEN('hi ') -&gt; 2</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">DATALENGTH(s)</td><td class="px-3 py-1.5">Byte length (counts trailing)</td><td class="px-3 py-1.5 font-mono">DATALENGTH('hi ') -&gt; 3</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">LEFT / RIGHT(s,n)</td><td class="px-3 py-1.5">First / last n chars</td><td class="px-3 py-1.5 font-mono">LEFT('hello',3) -&gt; 'hel'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">SUBSTRING(s,start,len)</td><td class="px-3 py-1.5">Extract (1-based)</td><td class="px-3 py-1.5 font-mono">SUBSTRING('hello',2,3) -&gt; 'ell'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">CHARINDEX(find,s)</td><td class="px-3 py-1.5">Position (0 = not found)</td><td class="px-3 py-1.5 font-mono">CHARINDEX('ll','hello') -&gt; 3</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">PATINDEX(pat,s)</td><td class="px-3 py-1.5">Pattern position (wildcards)</td><td class="px-3 py-1.5 font-mono">PATINDEX('%[0-9]%','ab3') -&gt; 3</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">REPLACE(s,old,new)</td><td class="px-3 py-1.5">Replace all occurrences</td><td class="px-3 py-1.5 font-mono">REPLACE('a.b.c','.','-') -&gt; 'a-b-c'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">STUFF(s,start,len,new)</td><td class="px-3 py-1.5">Delete len chars + insert</td><td class="px-3 py-1.5 font-mono">STUFF('hello',2,3,'XY') -&gt; 'hXYo'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">TRIM / LTRIM / RTRIM</td><td class="px-3 py-1.5">Strip whitespace</td><td class="px-3 py-1.5 font-mono">TRIM('  hi  ') -&gt; 'hi'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">UPPER / LOWER</td><td class="px-3 py-1.5">Change case</td><td class="px-3 py-1.5 font-mono">UPPER('hi') -&gt; 'HI'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">REVERSE(s)</td><td class="px-3 py-1.5">Reverse</td><td class="px-3 py-1.5 font-mono">REVERSE('abc') -&gt; 'cba'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">REPLICATE(s,n)</td><td class="px-3 py-1.5">Repeat n times</td><td class="px-3 py-1.5 font-mono">REPLICATE('ab',3) -&gt; 'ababab'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">CONCAT(a,b,...)</td><td class="px-3 py-1.5">Join, NULL-safe (NULL-&gt;'')</td><td class="px-3 py-1.5 font-mono">CONCAT('a',NULL,'b') -&gt; 'ab'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">CONCAT_WS(sep,...)</td><td class="px-3 py-1.5">Join with separator, skips NULL</td><td class="px-3 py-1.5 font-mono">CONCAT_WS('-','a',NULL,'c') -&gt; 'a-c'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">STRING_AGG(col,sep)</td><td class="px-3 py-1.5">Rows -&gt; CSV (2017+)</td><td class="px-3 py-1.5 font-mono">'Alice, Bob, Carol'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">STRING_SPLIT(s,sep)</td><td class="px-3 py-1.5">CSV -&gt; rows (2016+)</td><td class="px-3 py-1.5 font-mono">SELECT value FROM STRING_SPLIT('a,b',',')</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
+    <strong>Use <code>CONCAT</code>, never <code>+</code>, for building strings:</strong> the <code>+</code> operator propagates NULL
+    (<code>'a' + NULL = NULL</code>), while <code>CONCAT</code> treats NULL as empty.
+    <code>STRING_AGG(name, ', ') WITHIN GROUP (ORDER BY name)</code> gives you a sorted CSV.
+  </div>
+</section>
+
+<!-- ============ AGGREGATE ============ -->
+<section id="aggregate">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">4. Aggregate functions</h2>
+  <div class="overflow-x-auto tbl-scroll mb-4">
+    <table class="w-full text-sm border border-slate-200 rounded-lg bg-white">
+      <thead class="bg-slate-100"><tr>
+        <th class="px-3 py-2 text-left">Function</th><th class="px-3 py-2 text-left">Purpose</th><th class="px-3 py-2 text-left">NULL behavior</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5 font-mono">COUNT(*)</td><td class="px-3 py-1.5">Count rows</td><td class="px-3 py-1.5 font-semibold text-indigo-700">Includes NULLs</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">COUNT(col)</td><td class="px-3 py-1.5">Count non-NULL values</td><td class="px-3 py-1.5">Skips NULLs</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">COUNT(DISTINCT col)</td><td class="px-3 py-1.5">Count unique values</td><td class="px-3 py-1.5">Skips NULLs</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">SUM(col)</td><td class="px-3 py-1.5">Total</td><td class="px-3 py-1.5">Ignores NULLs</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">AVG(col)</td><td class="px-3 py-1.5">Average</td><td class="px-3 py-1.5 font-semibold text-indigo-700">Ignores NULLs (not zero!)</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">MIN / MAX(col)</td><td class="px-3 py-1.5">Extremes</td><td class="px-3 py-1.5">Ignores NULLs</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">STRING_AGG(col,sep)</td><td class="px-3 py-1.5">Concat into string</td><td class="px-3 py-1.5">Skips NULLs (2017+)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm">
+<pre><code><span class="cm">-- Column values [10, 20, NULL]:</span>
+<span class="fn">AVG</span>(col)          <span class="cm">-- 15  (sum 30 / count 2), NOT 10</span>
+<span class="fn">COUNT</span>(*)         <span class="cm">-- 3   (all rows)</span>
+<span class="fn">COUNT</span>(col)       <span class="cm">-- 2   (non-NULL only)</span>
+
+<span class="cm">-- SUM over an empty set is NULL, not 0 - guard it:</span>
+<span class="fn">ISNULL</span>(<span class="fn">SUM</span>(col), <span class="nu">0</span>)
+
+<span class="cm">-- Average that treats NULL as 0: use SUM/COUNT(*) instead of AVG</span>
+<span class="fn">SUM</span>(col) * <span class="nu">1.0</span> / <span class="fn">COUNT</span>(*)</code></pre>
+  </div>
+</section>
+
+<!-- ============ MATH ============ -->
+<section id="math">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">5. Math functions</h2>
+  <div class="overflow-x-auto tbl-scroll">
+    <table class="w-full text-sm border border-slate-200 rounded-lg bg-white">
+      <thead class="bg-slate-100"><tr>
+        <th class="px-3 py-2 text-left">Function</th><th class="px-3 py-2 text-left">Purpose</th><th class="px-3 py-2 text-left">Example -&gt; result</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5 font-mono">ROUND(n,d)</td><td class="px-3 py-1.5">Round to d decimals</td><td class="px-3 py-1.5 font-mono">ROUND(3.456,2) -&gt; 3.46</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">ROUND(n,d,1)</td><td class="px-3 py-1.5">3rd arg != 0 = truncate</td><td class="px-3 py-1.5 font-mono">ROUND(3.999,2,1) -&gt; 3.99</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">CEILING(n)</td><td class="px-3 py-1.5">Round up</td><td class="px-3 py-1.5 font-mono">CEILING(3.1) -&gt; 4</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">FLOOR(n)</td><td class="px-3 py-1.5">Round down</td><td class="px-3 py-1.5 font-mono">FLOOR(3.9) -&gt; 3</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">ABS(n)</td><td class="px-3 py-1.5">Absolute value</td><td class="px-3 py-1.5 font-mono">ABS(-5) -&gt; 5</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">POWER(b,e)</td><td class="px-3 py-1.5">Exponent</td><td class="px-3 py-1.5 font-mono">POWER(2,3) -&gt; 8</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">SQRT(n)</td><td class="px-3 py-1.5">Square root</td><td class="px-3 py-1.5 font-mono">SQRT(16) -&gt; 4</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">SIGN(n)</td><td class="px-3 py-1.5">-1, 0, or 1</td><td class="px-3 py-1.5 font-mono">SIGN(-5) -&gt; -1</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">% (modulo)</td><td class="px-3 py-1.5">Remainder</td><td class="px-3 py-1.5 font-mono">7 % 3 -&gt; 1</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ ROUNDING & FORMATTING (deep dive) ============ -->
+<section id="rounding">
+  <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-7">
+    <h2 class="text-3xl font-bold text-indigo-900 mb-2">6. Rounding, truncation &amp; number formatting</h2>
+    <p class="text-slate-700 mb-4">This is the part everyone gets wrong. Your exact question:</p>
+    <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="fn">FORMAT</span>(
+  <span class="fn">ROUND</span>((r.total_returns - p.initial_investment - p.additional_investments)
+        * <span class="nu">100.0</span> / p.initial_investment, <span class="nu">2</span>),
+  <span class="st">'0.00'</span>
+) <span class="kw">AS</span> annual_roi</code></pre>
+    </div>
+
+    <h3 class="text-xl font-bold text-indigo-900 mb-2">Why FORMAT if ROUND already rounds to 2 places?</h3>
+    <p class="text-slate-700 mb-3">
+      Because <strong>ROUND changes the value, FORMAT changes the presentation.</strong> They do totally different jobs:
+    </p>
+    <ul class="list-disc pl-6 space-y-1.5 text-slate-700 text-sm mb-4">
+      <li><strong>ROUND(x, 2)</strong> rounds the number mathematically but returns a <em>numeric</em>. It does <strong>not</strong> guarantee two visible decimals - <code>ROUND(5, 2)</code> is the number <code>5</code>, which displays as <code>5</code>, not <code>5.00</code>. And <code>ROUND(12.5, 2)</code> may display as <code>12.5</code>.</li>
+      <li><strong>FORMAT(x, '0.00')</strong> returns a <em>string</em> with <strong>exactly two decimal places, trailing zeros included</strong> - <code>5</code> becomes <code>'5.00'</code>, <code>12.5</code> becomes <code>'12.50'</code>. That's the whole point: consistent display for reports/UI.</li>
+    </ul>
+    <p class="text-slate-700 mb-3">
+      So the ROUND here isn't even strictly necessary for the display (FORMAT's <code>'0.00'</code> already rounds to 2 places).
+      The pattern is belt-and-suspenders: ROUND fixes the math, FORMAT fixes the look. Note the format is the string
+      <code>'0.00'</code> - writing a bare <code>0.00</code> works only because it implicitly converts to text.
+    </p>
+
+    <h3 class="text-xl font-bold text-indigo-900 mb-2">Same input, four tools, four different outputs</h3>
+    <div class="overflow-x-auto tbl-scroll mb-4">
+      <table class="w-full text-sm border border-indigo-200 rounded-lg bg-white">
+        <thead class="bg-indigo-100 text-indigo-900"><tr>
+          <th class="px-3 py-2 text-left">Input</th>
+          <th class="px-3 py-2 text-left">ROUND(x,2)<br><span class="font-normal">numeric</span></th>
+          <th class="px-3 py-2 text-left">CAST(x AS DECIMAL(10,2))<br><span class="font-normal">numeric</span></th>
+          <th class="px-3 py-2 text-left">FORMAT(x,'0.00')<br><span class="font-normal">string</span></th>
+          <th class="px-3 py-2 text-left">STR(x,10,2)<br><span class="font-normal">string</span></th></tr></thead>
+        <tbody class="divide-y divide-indigo-100 text-slate-700 font-mono">
+          <tr><td class="px-3 py-1.5">5</td><td class="px-3 py-1.5">5</td><td class="px-3 py-1.5">5.00</td><td class="px-3 py-1.5">'5.00'</td><td class="px-3 py-1.5">'5.00'</td></tr>
+          <tr><td class="px-3 py-1.5">12.5</td><td class="px-3 py-1.5">12.5</td><td class="px-3 py-1.5">12.50</td><td class="px-3 py-1.5">'12.50'</td><td class="px-3 py-1.5">'12.50'</td></tr>
+          <tr><td class="px-3 py-1.5">3.456</td><td class="px-3 py-1.5">3.46</td><td class="px-3 py-1.5">3.46</td><td class="px-3 py-1.5">'3.46'</td><td class="px-3 py-1.5">'3.46'</td></tr>
+          <tr><td class="px-3 py-1.5">1234.5</td><td class="px-3 py-1.5">1234.5</td><td class="px-3 py-1.5">1234.50</td><td class="px-3 py-1.5">'1234.50'</td><td class="px-3 py-1.5">'1234.50'</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-sm text-slate-600 mb-4">
+      Want thousands separators for money? <code>FORMAT(1234567.5, '#,##0.00')</code> -&gt; <code>'1,234,567.50'</code> or the
+      culture shortcut <code>FORMAT(1234567.5, 'N2')</code>. Neither ROUND nor CAST can add commas.
+    </p>
+
+    <h3 class="text-xl font-bold text-indigo-900 mb-2">The edge cases (all of them)</h3>
+    <div class="overflow-x-auto tbl-scroll">
+      <table class="w-full text-sm border border-amber-200 rounded-lg bg-white">
+        <thead class="bg-amber-100 text-amber-900"><tr>
+          <th class="px-3 py-2 text-left w-1/3">Edge case</th><th class="px-3 py-2 text-left">What actually happens</th></tr></thead>
+        <tbody class="divide-y divide-amber-100 text-slate-700">
+          <tr><td class="px-3 py-2 font-semibold">ROUND keeps the type/scale</td><td class="px-3 py-2"><code>ROUND</code> does NOT drop decimal places - it returns the same type. <code>ROUND(123.456, 2)</code> is <code>123.460</code> if the source has scale 3. Use <code>CAST(... AS DECIMAL(p,2))</code> to actually fix the scale.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">ROUND is round-half-up, not banker's</td><td class="px-3 py-2">SQL Server rounds halves away from zero: <code>ROUND(2.5,0)=3</code>, <code>ROUND(-2.5,0)=-3</code>. (This differs from .NET/Python banker's rounding.)</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">ROUND 3rd arg truncates</td><td class="px-3 py-2">Any non-zero 3rd arg means "truncate, don't round": <code>ROUND(3.999, 2, 1) = 3.99</code>.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">ROUND with negative digits</td><td class="px-3 py-2">Rounds left of the decimal: <code>ROUND(1234, -2) = 1200</code>.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">Integer division truncates FIRST</td><td class="px-3 py-2"><code>ROUND(5/2, 2) = 2.00</code> - the <code>5/2</code> is integer math (=2) before ROUND runs. Force decimals: <code>5*1.0/2</code> or <code>CAST(5 AS DECIMAL(10,2))/2</code>.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">FORMAT returns NVARCHAR</td><td class="px-3 py-2">You can't do math on the result and it sorts alphabetically ('100' &lt; '9'). Only use FORMAT for final display.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">FORMAT is slow (CLR)</td><td class="px-3 py-2">Avoid in WHERE/JOIN/large sets. For fixed-decimal display prefer <code>CAST(x AS DECIMAL(p,2))</code>; use FORMAT only when you need commas/currency/culture.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">FORMAT NULL input</td><td class="px-3 py-2"><code>FORMAT(NULL, '0.00')</code> returns <code>NULL</code>, not <code>'0.00'</code>. Wrap in COALESCE if needed.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">STR() rounds &amp; right-justifies</td><td class="px-3 py-2"><code>STR(num, length, decimals)</code> is an older fixed-width string formatter. It rounds and pads with spaces; returns <code>'****'</code> if the number won't fit the length.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">CEILING/FLOOR keep the type</td><td class="px-3 py-2"><code>CEILING(3.1)</code> returns <code>4.0</code> (same numeric type), not an INT. CAST if you need a true integer.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-emerald-900 mt-4">
+      <strong>Practical rule:</strong> for a stored/calculated money value use <code>CAST(x AS DECIMAL(19,2))</code> (correct type, still numeric).
+      For a report/display string with fixed decimals or commas use <code>FORMAT</code>. Use <code>ROUND</code> when you truly need to change the value's precision for further math.
+    </div>
+  </div>
+</section>
+
+<!-- ============ CONVERSION ============ -->
+<section id="convert">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">7. Type conversion</h2>
+  <div class="overflow-x-auto tbl-scroll mb-4">
+    <table class="w-full text-sm border border-slate-200 rounded-lg bg-white">
+      <thead class="bg-slate-100"><tr>
+        <th class="px-3 py-2 text-left">Function</th><th class="px-3 py-2 text-left">Purpose</th><th class="px-3 py-2 text-left">Standard</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5 font-mono">CAST(expr AS type)</td><td class="px-3 py-1.5">Convert type (no formatting)</td><td class="px-3 py-1.5">ANSI</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">CONVERT(type,expr[,style])</td><td class="px-3 py-1.5">Convert with style codes</td><td class="px-3 py-1.5">SQL Server</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">TRY_CAST(expr AS type)</td><td class="px-3 py-1.5">NULL on failure (no error)</td><td class="px-3 py-1.5">SQL Server 2012+</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">TRY_CONVERT(type,expr)</td><td class="px-3 py-1.5">NULL on failure (no error)</td><td class="px-3 py-1.5">SQL Server 2012+</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm">
+<pre><code><span class="fn">CAST</span>(<span class="st">'abc'</span> <span class="kw">AS</span> <span class="kw">INT</span>)        <span class="cm">-- ERROR!</span>
+<span class="fn">TRY_CAST</span>(<span class="st">'abc'</span> <span class="kw">AS</span> <span class="kw">INT</span>)    <span class="cm">-- NULL (safe)</span>
+
+<span class="cm">-- Force decimal division (the classic):</span>
+<span class="fn">CAST</span>(<span class="nu">1</span> <span class="kw">AS</span> <span class="kw">DECIMAL</span>(<span class="nu">10</span>,<span class="nu">2</span>)) / <span class="nu">2</span>   <span class="cm">-- 0.50</span>
+<span class="nu">1.0</span> * <span class="nu">1</span> / <span class="nu">2</span>                     <span class="cm">-- 0.50 (alternative)</span></code></pre>
+  </div>
+  <p class="text-sm text-slate-600 mt-3"><strong>Rule:</strong> CAST by default; TRY_CAST when input might be invalid; CONVERT only for style codes.</p>
+</section>
+
+<!-- ============ OPERATORS ============ -->
+<section id="operators">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">8. Logical &amp; existence operators</h2>
+  <div class="overflow-x-auto tbl-scroll mb-4">
+    <table class="w-full text-sm border border-slate-200 rounded-lg bg-white">
+      <thead class="bg-slate-100"><tr>
+        <th class="px-3 py-2 text-left">Operator</th><th class="px-3 py-2 text-left">Purpose</th><th class="px-3 py-2 text-left">Example</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5 font-mono">EXISTS / NOT EXISTS</td><td class="px-3 py-1.5">Any / no rows returned</td><td class="px-3 py-1.5 font-mono">WHERE EXISTS (SELECT 1 FROM ...)</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">IN (list / subquery)</td><td class="px-3 py-1.5">Match any value</td><td class="px-3 py-1.5 font-mono">WHERE id IN (1,2,3)</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">BETWEEN a AND b</td><td class="px-3 py-1.5">Range (inclusive both ends)</td><td class="px-3 py-1.5 font-mono">WHERE n BETWEEN 1 AND 10</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">LIKE</td><td class="px-3 py-1.5">Pattern match</td><td class="px-3 py-1.5 font-mono">WHERE name LIKE 'A%'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">IS NULL / IS NOT NULL</td><td class="px-3 py-1.5">NULL check</td><td class="px-3 py-1.5 font-mono">WHERE col IS NULL</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
+    <strong>NOT IN + NULL = silent empty result.</strong> If the subquery in <code>NOT IN (SELECT ...)</code> returns even one NULL,
+    the whole predicate yields no rows. Prefer <code>NOT EXISTS</code> for anti-joins - it's NULL-safe and usually faster on correlated subqueries.
+    Also: <code>BETWEEN</code> is inclusive, which bites on datetimes - use <code>&gt;= start AND &lt; nextDay</code> instead.
+  </div>
+</section>
+
+<!-- ============ SET OPS ============ -->
+<section id="sets">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">9. Set operators &amp; APPLY</h2>
+  <div class="overflow-x-auto tbl-scroll mb-4">
+    <table class="w-full text-sm border border-slate-200 rounded-lg bg-white">
+      <thead class="bg-slate-100"><tr>
+        <th class="px-3 py-2 text-left">Operator</th><th class="px-3 py-2 text-left">Purpose</th><th class="px-3 py-2 text-left">Duplicates</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5 font-mono">UNION</td><td class="px-3 py-1.5">Combine, remove dups</td><td class="px-3 py-1.5">Deduped (sorts - slower)</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">UNION ALL</td><td class="px-3 py-1.5">Combine, keep all</td><td class="px-3 py-1.5">All rows (faster)</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">INTERSECT</td><td class="px-3 py-1.5">Rows in both</td><td class="px-3 py-1.5">Deduped</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">EXCEPT</td><td class="px-3 py-1.5">In first, not second</td><td class="px-3 py-1.5">Deduped</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="cm">-- CROSS APPLY = INNER JOIN to a per-row table expression (drops non-matches)</span>
+<span class="cm">-- OUTER APPLY = LEFT JOIN version (keeps rows, NULLs for no match)</span>
+<span class="kw">SELECT</span> c.name, o.latest_order
+<span class="kw">FROM</span> Customers c
+<span class="kw">CROSS APPLY</span> (
+    <span class="kw">SELECT TOP</span> <span class="nu">1</span> order_date <span class="kw">AS</span> latest_order
+    <span class="kw">FROM</span> Orders o <span class="kw">WHERE</span> o.customer_id = c.id
+    <span class="kw">ORDER BY</span> order_date <span class="kw">DESC</span>
+) o;</code></pre>
+  </div>
+  <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 text-sm text-sky-900">
+    <strong>Use <code>UNION ALL</code> unless you truly need dedup</strong> - <code>UNION</code> adds a sort/distinct step.
+    <code>APPLY</code> shines for "top-N per group" and calling table-valued functions per row (PostgreSQL calls it <code>LATERAL</code>).
+  </div>
+</section>
+
+<!-- ============ JSON ============ -->
+<section id="json">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">10. JSON functions <span class="badge bg-amber-100 text-amber-800 align-middle">2016+</span> <span class="badge bg-orange-100 text-orange-800 align-middle">some 2022+</span></h2>
+  <p class="text-slate-700 mb-5">Read, test, shape and build JSON right in T-SQL. No native <code>json</code> type - JSON lives in <code>NVARCHAR</code>.</p>
+
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="kw">DECLARE</span> @j <span class="kw">NVARCHAR</span>(<span class="kw">MAX</span>) = <span class="st">'{
+  "id": 7,
+  "name": "Alice",
+  "tags": ["vip", "eu"],
+  "address": { "city": "Paris", "zip": "75001" }
+}'</span>;</code></pre>
+  </div>
+
+  <div class="overflow-x-auto tbl-scroll mb-4">
+    <table class="w-full text-sm border border-slate-200 rounded-lg bg-white">
+      <thead class="bg-slate-100"><tr>
+        <th class="px-3 py-2 text-left">Function</th><th class="px-3 py-2 text-left">Purpose</th><th class="px-3 py-2 text-left">Example -&gt; result</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5 font-mono">ISJSON(expr)</td><td class="px-3 py-1.5">Valid JSON? (1/0). Type arg in 2022+</td><td class="px-3 py-1.5 font-mono">ISJSON(@j) -&gt; 1</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">JSON_VALUE(expr,path)</td><td class="px-3 py-1.5">Extract a <strong>scalar</strong> (string/number)</td><td class="px-3 py-1.5 font-mono">JSON_VALUE(@j,'$.name') -&gt; 'Alice'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">JSON_QUERY(expr,path)</td><td class="px-3 py-1.5">Extract an <strong>object or array</strong></td><td class="px-3 py-1.5 font-mono">JSON_QUERY(@j,'$.tags') -&gt; '["vip","eu"]'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">JSON_MODIFY(expr,path,val)</td><td class="px-3 py-1.5">Update/insert/delete a value</td><td class="px-3 py-1.5 font-mono">sets $.name -&gt; new JSON string</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">OPENJSON(expr[,path])</td><td class="px-3 py-1.5">JSON -&gt; <strong>rows</strong> (table-valued)</td><td class="px-3 py-1.5 font-mono">shred array/object into a rowset</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">JSON_PATH_EXISTS(expr,path)</td><td class="px-3 py-1.5">Does the path exist? (1/0) <span class="badge bg-orange-100 text-orange-800">2022+</span></td><td class="px-3 py-1.5 font-mono">JSON_PATH_EXISTS(@j,'$.zip') -&gt; 0</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">JSON_OBJECT(...)</td><td class="px-3 py-1.5">Build an object <span class="badge bg-orange-100 text-orange-800">2022+</span></td><td class="px-3 py-1.5 font-mono">JSON_OBJECT('a':1,'b':2) -&gt; '{"a":1,"b":2}'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">JSON_ARRAY(...)</td><td class="px-3 py-1.5">Build an array <span class="badge bg-orange-100 text-orange-800">2022+</span></td><td class="px-3 py-1.5 font-mono">JSON_ARRAY(1,2,3) -&gt; '[1,2,3]'</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">FOR JSON PATH / AUTO</td><td class="px-3 py-1.5">Rows -&gt; JSON (query clause)</td><td class="px-3 py-1.5 font-mono">SELECT ... FOR JSON PATH</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="cm">-- Extract scalars vs objects (the key distinction):</span>
+<span class="fn">JSON_VALUE</span>(@j, <span class="st">'$.address.city'</span>)   <span class="cm">-- 'Paris'   (scalar - use JSON_VALUE)</span>
+<span class="fn">JSON_VALUE</span>(@j, <span class="st">'$.tags[0]'</span>)        <span class="cm">-- 'vip'     (array element by index)</span>
+<span class="fn">JSON_QUERY</span>(@j, <span class="st">'$.address'</span>)        <span class="cm">-- '{"city":"Paris","zip":"75001"}' (object)</span>
+
+<span class="cm">-- Modify: set, insert (new key), or delete (NULL removes it):</span>
+<span class="fn">JSON_MODIFY</span>(@j, <span class="st">'$.name'</span>, <span class="st">'Bob'</span>)               <span class="cm">-- update</span>
+<span class="fn">JSON_MODIFY</span>(@j, <span class="st">'$.active'</span>, <span class="kw">CAST</span>(<span class="nu">1</span> <span class="kw">AS</span> <span class="kw">BIT</span>))  <span class="cm">-- insert new key</span>
+<span class="fn">JSON_MODIFY</span>(@j, <span class="st">'$.tags'</span>, <span class="kw">NULL</span>)                 <span class="cm">-- delete key (in lax mode)</span>
+
+<span class="cm">-- Shred an array into rows:</span>
+<span class="kw">SELECT</span> value <span class="kw">FROM</span> <span class="fn">OPENJSON</span>(@j, <span class="st">'$.tags'</span>);   <span class="cm">-- rows: 'vip', 'eu'</span>
+
+<span class="cm">-- Shred an object with a typed schema (WITH clause):</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="fn">OPENJSON</span>(@j)
+  <span class="kw">WITH</span> (
+    id   <span class="kw">INT</span>            <span class="st">'$.id'</span>,
+    name <span class="kw">NVARCHAR</span>(<span class="nu">50</span>)   <span class="st">'$.name'</span>,
+    city <span class="kw">NVARCHAR</span>(<span class="nu">50</span>)   <span class="st">'$.address.city'</span>,
+    tags <span class="kw">NVARCHAR</span>(<span class="kw">MAX</span>)  <span class="st">'$.tags'</span> <span class="kw">AS JSON</span>   <span class="cm">-- nested array/object needs AS JSON</span>
+  );
+
+<span class="cm">-- Build JSON from a result set:</span>
+<span class="kw">SELECT</span> OrderId, Amount <span class="kw">FROM</span> Orders <span class="kw">FOR JSON PATH</span>;</code></pre>
+  </div>
+
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
+    <h4 class="font-bold text-amber-800 mb-3">Gotchas - JSON</h4>
+    <div class="overflow-x-auto tbl-scroll">
+      <table class="w-full text-sm border border-amber-200 rounded-lg bg-white">
+        <thead class="bg-amber-100 text-amber-900"><tr>
+          <th class="px-3 py-2 text-left w-1/3">Gotcha</th><th class="px-3 py-2 text-left">What happens / how to avoid it</th></tr></thead>
+        <tbody class="divide-y divide-amber-100 text-slate-700">
+          <tr><td class="px-3 py-2 font-semibold">JSON_VALUE only returns scalars</td><td class="px-3 py-2">Point it at an object/array and (in lax mode) you get <code>NULL</code>. Use JSON_QUERY for objects/arrays. Reverse is also true: JSON_QUERY on a scalar returns NULL.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">lax vs strict path mode</td><td class="px-3 py-2">Default is <code>lax</code> - missing paths return NULL silently. Prefix with <code>strict $.x</code> to raise an error when the path is missing.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">JSON_VALUE truncates at 4000 chars</td><td class="px-3 py-2">Returns <code>nvarchar(4000)</code>; longer scalars are truncated (lax) or error (strict). Use OPENJSON WITH a wider type for big values.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">Nested values in OPENJSON need AS JSON</td><td class="px-3 py-2">To pull a nested object/array as a column you must add <code>AS JSON</code> and the column type must be <code>NVARCHAR(MAX)</code>.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">No index on JSON by default</td><td class="px-3 py-2">Filtering on <code>JSON_VALUE(...)</code> scans. Add a computed column over the JSON_VALUE and index that for SARGable queries.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">No native JSON type (pre-2024)</td><td class="px-3 py-2">JSON is stored as NVARCHAR. Add a <code>CHECK (ISJSON(col) = 1)</code> constraint to guarantee validity. (A dedicated <code>json</code> type arrived in Azure SQL / SQL Server 2025.)</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">JSON_MODIFY delete needs lax</td><td class="px-3 py-2">Setting a path to <code>NULL</code> deletes the key in lax mode but sets it to null in strict mode. Know which you want.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ANSI MAP ============ -->
+<section id="ansi">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">11. SQL Server -&gt; ANSI / portable map</h2>
+  <div class="overflow-x-auto tbl-scroll">
+    <table class="w-full text-sm border border-slate-200 rounded-lg bg-white">
+      <thead class="bg-indigo-700 text-white"><tr>
+        <th class="px-3 py-2 text-left">SQL Server</th><th class="px-3 py-2 text-left">ANSI / Portable</th><th class="px-3 py-2 text-left">Note</th></tr></thead>
+      <tbody class="divide-y divide-slate-100 text-slate-700">
+        <tr><td class="px-3 py-1.5 font-mono">ISNULL(a,b)</td><td class="px-3 py-1.5 font-mono">COALESCE(a,b)</td><td class="px-3 py-1.5">multi-arg, safer types</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">IIF(c,t,f)</td><td class="px-3 py-1.5 font-mono">CASE WHEN c THEN t ELSE f END</td><td class="px-3 py-1.5">IIF = 2 branches</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">LEN(s)</td><td class="px-3 py-1.5 font-mono">CHAR_LENGTH(s)</td><td class="px-3 py-1.5">PG/MySQL</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">CHARINDEX(find,s)</td><td class="px-3 py-1.5 font-mono">POSITION(find IN s)</td><td class="px-3 py-1.5">ANSI</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">GETDATE()</td><td class="px-3 py-1.5 font-mono">CURRENT_TIMESTAMP</td><td class="px-3 py-1.5">identical</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">TOP N</td><td class="px-3 py-1.5 font-mono">FETCH FIRST N ROWS ONLY</td><td class="px-3 py-1.5">SQL:2008</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">% (modulo)</td><td class="px-3 py-1.5 font-mono">MOD(a,b)</td><td class="px-3 py-1.5">ANSI</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">CROSS APPLY</td><td class="px-3 py-1.5 font-mono">LATERAL JOIN</td><td class="px-3 py-1.5">PostgreSQL</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">STUFF(s,p,l,new)</td><td class="px-3 py-1.5 font-mono">INSERT(s,p,l,new)</td><td class="px-3 py-1.5">MySQL</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">DATALENGTH()</td><td class="px-3 py-1.5 font-mono">OCTET_LENGTH()</td><td class="px-3 py-1.5">ANSI</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ GOTCHAS ============ -->
+<section id="gotchas">
+  <h2 class="text-3xl font-bold text-slate-900 mb-4">Master gotchas</h2>
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
+    <div class="overflow-x-auto tbl-scroll">
+      <table class="w-full text-sm border border-amber-200 rounded-lg bg-white">
+        <thead class="bg-amber-100 text-amber-900"><tr>
+          <th class="px-3 py-2 text-left w-1/3">Gotcha</th><th class="px-3 py-2 text-left">What happens / how to avoid it</th></tr></thead>
+        <tbody class="divide-y divide-amber-100 text-slate-700">
+          <tr><td class="px-3 py-2 font-semibold">ISNULL truncates to 1st arg type</td><td class="px-3 py-2">Can silently cut off strings. Prefer COALESCE.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">+ propagates NULL</td><td class="px-3 py-2"><code>'a' + NULL = NULL</code>. Use CONCAT for string building.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">AVG ignores NULLs</td><td class="px-3 py-2">Not treated as 0. Use SUM/COUNT(*) if you want NULLs counted as zero.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">SUM of empty set is NULL</td><td class="px-3 py-2">Wrap in ISNULL(SUM(x),0) for a safe default.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">Integer division truncates</td><td class="px-3 py-2"><code>5/2 = 2</code>. Cast to DECIMAL or multiply by 1.0.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">ROUND != fixed decimals</td><td class="px-3 py-2">ROUND changes value, not display. Use CAST DECIMAL(p,2) or FORMAT for 2 visible places.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">NOT IN + NULL = no rows</td><td class="px-3 py-2">One NULL in the subquery empties the result. Use NOT EXISTS.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">BETWEEN is inclusive</td><td class="px-3 py-2">On datetimes it misses times after midnight of the end day. Use <code>&lt; nextDay</code>.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">FORMAT is slow (CLR)</td><td class="px-3 py-2">Display only - never in WHERE/JOIN or big result sets.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">Functions on columns = no index seek</td><td class="px-3 py-2">Keep predicates SARGable; don't wrap the indexed column in a function.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">UNION sorts to dedup</td><td class="px-3 py-2">Use UNION ALL unless dedup is required.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="bg-slate-900 text-slate-400 text-sm">
+  <div class="max-w-6xl mx-auto px-6 py-8">
+    <p>SQL Server (T-SQL) function reference (non-date).</p>
+    <p class="mt-1">Adapted &amp; tightened from luuck25/sql functions-reference.md, with an expanded rounding/formatting section (ROUND vs CAST vs FORMAT vs STR and all edge cases), CHOOSE, STRING_SPLIT, SARGability, and NULL-safety notes. Date functions live on the separate date-functions page.</p>
+  </div>
+</footer>
+
+</body>
+</html>

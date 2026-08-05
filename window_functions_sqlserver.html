@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Server Window Functions — The Complete Guide</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html { scroll-behavior: smooth; }
+  pre { color: #d4d4d4; }
+  pre code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; color: #d4d4d4; }
+  .kw { color: #c586c0; }      /* keyword */
+  .fn { color: #dcdcaa; }      /* function */
+  .st { color: #ce9178; }      /* string */
+  .nu { color: #b5cea8; }      /* number */
+  .cm { color: #6a9955; font-style: italic; } /* comment */
+  .tbl-scroll::-webkit-scrollbar { height: 8px; }
+  .tbl-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased">
+
+<!-- ============ HEADER ============ -->
+<header class="bg-gradient-to-r from-indigo-700 via-purple-700 to-fuchsia-700 text-white">
+  <div class="max-w-6xl mx-auto px-6 py-14">
+    <p class="uppercase tracking-widest text-indigo-200 text-sm font-semibold">SQL Server · T-SQL Reference</p>
+    <h1 class="text-4xl md:text-5xl font-extrabold mt-2">Window Functions — The Complete Guide</h1>
+    <p class="mt-4 text-lg text-indigo-100 max-w-3xl">
+      Every window function in SQL Server, explained in plain English <em>and</em> technical terms — with sample data,
+      copy-paste examples, and the gotchas that bite everyone (yes, even the seniors ).
+    </p>
+    <div class="mt-6 flex flex-wrap gap-2 text-sm">
+      <span class="bg-white/15 rounded-full px-3 py-1">Aggregate</span>
+      <span class="bg-white/15 rounded-full px-3 py-1">Ranking</span>
+      <span class="bg-white/15 rounded-full px-3 py-1">Offset / Value</span>
+      <span class="bg-white/15 rounded-full px-3 py-1">Statistical</span>
+      <span class="bg-white/15 rounded-full px-3 py-1">Frames (ROWS vs RANGE)</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ TOC ============ -->
+<nav class="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-200 shadow-sm">
+  <div class="max-w-6xl mx-auto px-6 py-3 flex flex-wrap gap-x-5 gap-y-1 text-sm font-medium text-indigo-700">
+    <a href="#intro" class="hover:underline">Intro</a>
+    <a href="#anatomy" class="hover:underline">OVER() Anatomy</a>
+    <a href="#data" class="hover:underline">Sample Data</a>
+    <a href="#aggregate" class="hover:underline">Aggregate</a>
+    <a href="#frames" class="hover:underline">Frames</a>
+    <a href="#ranking" class="hover:underline">Ranking</a>
+    <a href="#offset" class="hover:underline">Offset/Value</a>
+    <a href="#statistical" class="hover:underline">Statistical</a>
+    <a href="#gotchas" class="hover:underline">Master Gotchas</a>
+    <a href="#cheatsheet" class="hover:underline">Cheat Sheet</a>
+  </div>
+</nav>
+
+<main class="max-w-6xl mx-auto px-6 py-10 space-y-16">
+
+<!-- ============ INTRO ============ -->
+<section id="intro">
+  <h2 class="text-3xl font-bold text-slate-900 mb-4"> What even <em>is</em> a window function?</h2>
+  <div class="grid md:grid-cols-2 gap-6">
+    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
+      <h3 class="font-bold text-emerald-800 text-lg mb-2"> In layman's terms</h3>
+      <p class="text-slate-700 leading-relaxed">
+        Imagine a spreadsheet. A normal <code class="bg-emerald-100 px-1 rounded">GROUP BY</code> squishes many rows into one
+        summary row — you lose the detail. A <strong>window function</strong> lets you calculate that same summary
+        (a running total, a rank, "yesterday's value") <em>while keeping every original row visible</em>.
+        It looks through a "window" of nearby rows, does the math, and writes the answer next to each row.
+        Nothing gets squished. 
+      </p>
+    </div>
+    <div class="bg-sky-50 border border-sky-200 rounded-xl p-5">
+      <h3 class="font-bold text-sky-800 text-lg mb-2"> In technical terms</h3>
+      <p class="text-slate-700 leading-relaxed">
+        A window function performs a calculation across a set of rows (the "window frame") that are related to the
+        current row, defined by the <code class="bg-sky-100 px-1 rounded">OVER()</code> clause. Unlike aggregates with
+        <code class="bg-sky-100 px-1 rounded">GROUP BY</code>, it does <strong>not</strong> collapse rows. Logically it
+        runs after <code class="bg-sky-100 px-1 rounded">WHERE/GROUP BY/HAVING</code> but before
+        <code class="bg-sky-100 px-1 rounded">ORDER BY/TOP</code> — which is exactly why you can't use it in a
+        <code class="bg-sky-100 px-1 rounded">WHERE</code> clause.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ANATOMY ============ -->
+<section id="anatomy">
+  <h2 class="text-3xl font-bold text-slate-900 mb-4"> Anatomy of the <code>OVER()</code> clause</h2>
+  <p class="mb-4 text-slate-700">Every window function is <em>function</em> + <code>OVER()</code>. Three optional knobs live inside OVER:</p>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm leading-relaxed">
+<pre><code><span class="fn">FUNCTION</span>(...) <span class="kw">OVER</span> (
+    [ <span class="kw">PARTITION BY</span> col1, col2 ]   <span class="cm">-- split rows into groups (like GROUP BY, but rows survive)</span>
+    [ <span class="kw">ORDER BY</span>     col3 ]         <span class="cm">-- give the window an order (needed for running/ranking)</span>
+    [ <span class="kw">ROWS</span>|<span class="kw">RANGE</span> BETWEEN ... AND ... ]  <span class="cm">-- the frame: which rows count, relative to current row</span>
+)</code></pre>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 mt-5">
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">PARTITION BY</h4>
+      <p class="text-sm text-slate-600 mt-1">Resets the calculation per group. No PARTITION BY = the whole result set is one window.</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">ORDER BY</h4>
+      <p class="text-sm text-slate-600 mt-1">Orders rows <em>inside</em> the window. Mandatory for ranking &amp; offset functions.</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">Frame (ROWS/RANGE)</h4>
+      <p class="text-sm text-slate-600 mt-1">Narrows the window to a sliding subset. This is where the scary gotchas live. </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SAMPLE DATA ============ -->
+<section id="data">
+  <h2 class="text-3xl font-bold text-slate-900 mb-4"> Sample data (used in every example)</h2>
+  <p class="mb-4 text-slate-700">Run this once. Every query below uses this <code>Sales</code> table.</p>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm">
+<pre><code><span class="kw">CREATE TABLE</span> Sales (
+    SaleId      <span class="kw">INT</span>,
+    Region      <span class="kw">VARCHAR</span>(<span class="nu">20</span>),
+    SalesPerson <span class="kw">VARCHAR</span>(<span class="nu">20</span>),
+    SaleDate    <span class="kw">DATE</span>,
+    Amount      <span class="kw">DECIMAL</span>(<span class="nu">10</span>,<span class="nu">2</span>)
+);
+
+<span class="kw">INSERT INTO</span> Sales <span class="kw">VALUES</span>
+(<span class="nu">1</span>, <span class="st">'East'</span>, <span class="st">'Alice'</span>, <span class="st">'2024-01-05'</span>, <span class="nu">1000</span>),
+(<span class="nu">2</span>, <span class="st">'East'</span>, <span class="st">'Alice'</span>, <span class="st">'2024-01-12'</span>, <span class="nu">1500</span>),
+(<span class="nu">3</span>, <span class="st">'East'</span>, <span class="st">'Bob'</span>,   <span class="st">'2024-01-08'</span>, <span class="nu">1500</span>),
+(<span class="nu">4</span>, <span class="st">'West'</span>, <span class="st">'Carol'</span>, <span class="st">'2024-01-03'</span>, <span class="nu">2000</span>),
+(<span class="nu">5</span>, <span class="st">'West'</span>, <span class="st">'Carol'</span>, <span class="st">'2024-01-20'</span>, <span class="nu">800</span>),
+(<span class="nu">6</span>, <span class="st">'West'</span>, <span class="st">'Dave'</span>,  <span class="st">'2024-01-15'</span>, <span class="nu">2000</span>),
+(<span class="nu">7</span>, <span class="st">'West'</span>, <span class="st">'Dave'</span>,  <span class="st">'2024-01-28'</span>, <span class="nu">500</span>);</code></pre>
+  </div>
+  <div class="mt-5 overflow-x-auto tbl-scroll">
+    <table class="w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
+      <thead class="bg-slate-100 text-slate-700">
+        <tr><th class="px-3 py-2 text-left">SaleId</th><th class="px-3 py-2 text-left">Region</th><th class="px-3 py-2 text-left">SalesPerson</th><th class="px-3 py-2 text-left">SaleDate</th><th class="px-3 py-2 text-right">Amount</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5">1</td><td class="px-3 py-1.5">East</td><td class="px-3 py-1.5">Alice</td><td class="px-3 py-1.5">2024-01-05</td><td class="px-3 py-1.5 text-right">1000.00</td></tr>
+        <tr><td class="px-3 py-1.5">2</td><td class="px-3 py-1.5">East</td><td class="px-3 py-1.5">Alice</td><td class="px-3 py-1.5">2024-01-12</td><td class="px-3 py-1.5 text-right">1500.00</td></tr>
+        <tr><td class="px-3 py-1.5">3</td><td class="px-3 py-1.5">East</td><td class="px-3 py-1.5">Bob</td><td class="px-3 py-1.5">2024-01-08</td><td class="px-3 py-1.5 text-right">1500.00</td></tr>
+        <tr><td class="px-3 py-1.5">4</td><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">Carol</td><td class="px-3 py-1.5">2024-01-03</td><td class="px-3 py-1.5 text-right">2000.00</td></tr>
+        <tr><td class="px-3 py-1.5">5</td><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">Carol</td><td class="px-3 py-1.5">2024-01-20</td><td class="px-3 py-1.5 text-right">800.00</td></tr>
+        <tr><td class="px-3 py-1.5">6</td><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">Dave</td><td class="px-3 py-1.5">2024-01-15</td><td class="px-3 py-1.5 text-right">2000.00</td></tr>
+        <tr><td class="px-3 py-1.5">7</td><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">Dave</td><td class="px-3 py-1.5">2024-01-28</td><td class="px-3 py-1.5 text-right">500.00</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ AGGREGATE ============ -->
+<section id="aggregate">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="text-3xl"></span>
+    <h2 class="text-3xl font-bold text-slate-900">Aggregate Window Functions</h2>
+  </div>
+  <p class="text-slate-700 mb-6"><code>SUM, AVG, COUNT, MIN, MAX</code> — the ordinary aggregates, but with <code>OVER()</code> slapped on so rows survive.</p>
+
+  <div class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-r-lg mb-6">
+    <p class="text-amber-900"><strong>Layman:</strong> "Give me the total/average <em>next to</em> each row, not instead of it."
+    <strong>Technical:</strong> aggregate computed over the window frame instead of a GROUP BY group.</p>
+  </div>
+
+  <h3 class="text-xl font-semibold text-slate-800 mb-2">Example — total &amp; running total per region</h3>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="kw">SELECT</span> SaleId, Region, SaleDate, Amount,
+    <span class="fn">SUM</span>(Amount)   <span class="kw">OVER</span>(<span class="kw">PARTITION BY</span> Region)                     <span class="kw">AS</span> RegionTotal,
+    <span class="fn">AVG</span>(Amount)   <span class="kw">OVER</span>(<span class="kw">PARTITION BY</span> Region)                     <span class="kw">AS</span> RegionAvg,
+    <span class="fn">SUM</span>(Amount)   <span class="kw">OVER</span>(<span class="kw">PARTITION BY</span> Region <span class="kw">ORDER BY</span> SaleDate)    <span class="kw">AS</span> RunningTotal
+<span class="kw">FROM</span> Sales
+<span class="kw">ORDER BY</span> Region, SaleDate;</code></pre>
+  </div>
+  <div class="overflow-x-auto tbl-scroll mb-4">
+    <table class="w-full text-sm border border-slate-200 rounded-lg">
+      <thead class="bg-slate-100"><tr>
+        <th class="px-3 py-2 text-left">Region</th><th class="px-3 py-2 text-left">SaleDate</th><th class="px-3 py-2 text-right">Amount</th>
+        <th class="px-3 py-2 text-right">RegionTotal</th><th class="px-3 py-2 text-right">RegionAvg</th><th class="px-3 py-2 text-right">RunningTotal</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5">East</td><td class="px-3 py-1.5">01-05</td><td class="px-3 py-1.5 text-right">1000</td><td class="px-3 py-1.5 text-right">4000</td><td class="px-3 py-1.5 text-right">1333.33</td><td class="px-3 py-1.5 text-right font-semibold text-indigo-700">1000</td></tr>
+        <tr><td class="px-3 py-1.5">East</td><td class="px-3 py-1.5">01-08</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">4000</td><td class="px-3 py-1.5 text-right">1333.33</td><td class="px-3 py-1.5 text-right font-semibold text-indigo-700">2500</td></tr>
+        <tr><td class="px-3 py-1.5">East</td><td class="px-3 py-1.5">01-12</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">4000</td><td class="px-3 py-1.5 text-right">1333.33</td><td class="px-3 py-1.5 text-right font-semibold text-indigo-700">4000</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">01-03</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">5300</td><td class="px-3 py-1.5 text-right">1325.00</td><td class="px-3 py-1.5 text-right font-semibold text-indigo-700">2000</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">01-15</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">5300</td><td class="px-3 py-1.5 text-right">1325.00</td><td class="px-3 py-1.5 text-right font-semibold text-indigo-700">4000</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">01-20</td><td class="px-3 py-1.5 text-right">800</td><td class="px-3 py-1.5 text-right">5300</td><td class="px-3 py-1.5 text-right">1325.00</td><td class="px-3 py-1.5 text-right font-semibold text-indigo-700">4800</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">01-28</td><td class="px-3 py-1.5 text-right">500</td><td class="px-3 py-1.5 text-right">5300</td><td class="px-3 py-1.5 text-right">1325.00</td><td class="px-3 py-1.5 text-right font-semibold text-indigo-700">5300</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Default frame + ROWS vs RANGE deep-dive -->
+  <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-6 mb-6">
+    <h3 class="text-xl font-bold text-indigo-900 mb-3">What frame do you get by DEFAULT? (RANGE, not ROWS)</h3>
+    <p class="text-slate-700 mb-3">
+      When you add <code class="bg-indigo-100 px-1 rounded">ORDER BY</code> to an aggregate window function but
+      <strong>don't</strong> specify a frame, like:
+    </p>
+    <div class="bg-slate-900 rounded-xl p-4 overflow-x-auto text-sm mb-3">
+<pre><code><span class="fn">SUM</span>(Amount) <span class="kw">OVER</span>(<span class="kw">PARTITION BY</span> Region <span class="kw">ORDER BY</span> SaleDate)</code></pre>
+    </div>
+    <p class="text-slate-700 mb-3">...SQL Server silently applies this default frame:</p>
+    <div class="bg-slate-900 rounded-xl p-4 overflow-x-auto text-sm mb-3">
+<pre><code><span class="fn">SUM</span>(Amount) <span class="kw">OVER</span>(
+    <span class="kw">PARTITION BY</span> Region
+    <span class="kw">ORDER BY</span> SaleDate
+    <span class="kw">RANGE BETWEEN</span> <span class="kw">UNBOUNDED PRECEDING</span> <span class="kw">AND</span> <span class="kw">CURRENT ROW</span>   <span class="cm">-- the DEFAULT</span>
+)</code></pre>
+    </div>
+    <p class="text-slate-700">
+      So the default is <strong class="text-indigo-800">RANGE</strong> BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW --
+      <strong>not</strong> <code class="bg-indigo-100 px-1 rounded">ROWS</code>. Most people assume ROWS and get
+      surprised the moment there's a tie in the ORDER BY column.
+    </p>
+  </div>
+
+  <h3 class="text-xl font-semibold text-slate-800 mb-2">ROWS vs RANGE -- identical until there's a tie</h3>
+  <p class="text-slate-700 mb-4">
+    <code>ROWS</code> and <code>RANGE</code> return the <strong>same result</strong> as long as your <code>ORDER BY</code>
+    column has no duplicate values. The moment two rows share an ORDER BY value, they diverge:
+  </p>
+  <div class="grid md:grid-cols-2 gap-6 mb-5">
+    <div class="bg-sky-50 border border-sky-200 rounded-xl p-5">
+      <h4 class="font-bold text-sky-800 mb-2">ROWS = physical rows</h4>
+      <p class="text-sm text-slate-700">Counts actual rows. A true row-by-row running total: each row includes itself
+      plus everything strictly before it. Ties are treated as separate rows. <strong>This is usually what you actually want.</strong></p>
+    </div>
+    <div class="bg-purple-50 border border-purple-200 rounded-xl p-5">
+      <h4 class="font-bold text-purple-800 mb-2">RANGE = logical value peers</h4>
+      <p class="text-sm text-slate-700">All rows sharing the same ORDER BY value are one peer group and are summed
+      <em>together</em>. So tied rows all show the same cumulative total (the sum through the end of that tie group).</p>
+    </div>
+  </div>
+
+  <p class="text-slate-700 mb-3">Suppose East had <strong>two sales on the same date (01-08)</strong>. Watch the running total split:</p>
+  <div class="overflow-x-auto tbl-scroll mb-4">
+    <table class="w-full text-sm border border-slate-200 rounded-lg">
+      <thead class="bg-slate-100"><tr>
+        <th class="px-3 py-2 text-left">SaleDate</th><th class="px-3 py-2 text-right">Amount</th>
+        <th class="px-3 py-2 text-right">RANGE (default)</th><th class="px-3 py-2 text-right">ROWS</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5">01-05</td><td class="px-3 py-1.5 text-right">1000</td><td class="px-3 py-1.5 text-right">1000</td><td class="px-3 py-1.5 text-right">1000</td></tr>
+        <        <tr class="bg-amber-50"><td class="px-3 py-1.5">01-08</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right font-bold text-purple-700">4000</td><td class="px-3 py-1.5 text-right font-bold text-sky-700">2500</td></tr>
+        <tr class="bg-amber-50"><td class="px-3 py-1.5">01-08</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right font-bold text-purple-700">4000</td><td class="px-3 py-1.5 text-right font-bold text-sky-700">4000</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="text-sm text-slate-600 mb-5">
+    With the default <strong>RANGE</strong>, both 01-08 rows jump to <strong>4000</strong> (they're peers, so they share the
+    cumulative sum). With <strong>ROWS</strong>, you get the true incremental running total: 2500 then 4000.
+  </p>
+
+  <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-5 mb-6">
+    <h4 class="font-bold text-emerald-800 mb-2">The takeaway -- be explicit for real running totals</h4>
+    <div class="bg-slate-900 rounded-xl p-4 overflow-x-auto text-sm mt-2">
+<pre><code><span class="fn">SUM</span>(Amount) <span class="kw">OVER</span>(
+    <span class="kw">PARTITION BY</span> Region
+    <span class="kw">ORDER BY</span> SaleDate
+    <span class="kw">ROWS BETWEEN</span> <span class="kw">UNBOUNDED PRECEDING</span> <span class="kw">AND</span> <span class="kw">CURRENT ROW</span>   <span class="cm">-- true row-by-row running total</span>
+)</code></pre>
+    </div>
+    <p class="text-sm text-emerald-900 mt-3">
+      Bonus: <code>ROWS</code> is usually <strong>cheaper</strong> too -- the default <code>RANGE</code> can force a bigger
+      window spool / worktable in the execution plan.
+    </p>
+  </div>
+
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
+    <h4 class="font-bold text-amber-800 mb-3"> Gotchas &mdash; Aggregate functions</h4>
+    <div class="overflow-x-auto tbl-scroll">
+      <table class="w-full text-sm border border-amber-200 rounded-lg bg-white">
+        <thead class="bg-amber-100 text-amber-900"><tr>
+          <th class="px-3 py-2 text-left w-1/3">Gotcha</th><th class="px-3 py-2 text-left">What happens / how to avoid it</th></tr></thead>
+        <tbody class="divide-y divide-amber-100 text-slate-700">
+          <tr><td class="px-3 py-2 font-semibold">ORDER BY secretly changes the frame</td><td class="px-3 py-2">Without ORDER BY the default frame is the whole partition (grand total). <em>With</em> ORDER BY it becomes <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &rarr; a <em>running</em> total. Same function, wildly different numbers.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">RANGE + ties = surprise</td><td class="px-3 py-2">With the default RANGE frame, tied ORDER BY values are lumped together, so a shared date makes the running total include <em>both</em> rows. Use <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> for a true row-by-row total.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">COUNT(*) vs COUNT(col)</td><td class="px-3 py-2"><code>COUNT(col)</code> ignores NULLs in the window, just like normal aggregation; <code>COUNT(*)</code> counts every row.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">No DISTINCT allowed</td><td class="px-3 py-2">Aggregate window functions cannot use DISTINCT &mdash; <code>COUNT(DISTINCT x) OVER(...)</code> is illegal in SQL Server.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">Can't filter on the alias in WHERE</td><td class="px-3 py-2">You can't reference a window column alias in <code>WHERE</code>. Wrap the query in a CTE/subquery and filter in the outer query.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FRAMES ============ -->
+<section id="frames">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="text-3xl"></span>
+    <h2 class="text-3xl font-bold text-slate-900">Window Frames: ROWS vs RANGE</h2>
+  </div>
+  <p class="text-slate-700 mb-4">Frames belong to the <strong>aggregate</strong> family (SUM/AVG/COUNT/MIN/MAX and FIRST_VALUE/LAST_VALUE). The frame decides <em>which</em> rows around the current one participate &mdash; the #1 source of "why are my numbers wrong?!"</p>
+
+  <!-- Mental model: default frame flips based on ORDER BY -->
+  <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-5 mb-6">
+    <h3 class="text-xl font-bold text-indigo-900 mb-3">Mental model &mdash; the default frame flips based on ORDER BY</h3>
+    <div class="overflow-x-auto tbl-scroll">
+      <table class="w-full text-sm border border-indigo-200 rounded-lg bg-white">
+        <thead class="bg-indigo-100 text-indigo-900"><tr>
+          <th class="px-3 py-2 text-left">Clause</th><th class="px-3 py-2 text-left">Default frame</th><th class="px-3 py-2 text-left">Result</th></tr></thead>
+        <tbody class="divide-y divide-indigo-100 text-slate-700">
+          <tr><td class="px-3 py-2 font-mono">OVER() &mdash; no ORDER BY</td><td class="px-3 py-2"><code>RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code></td><td class="px-3 py-2"><strong>Grand total</strong> on every row (whole window)</td></tr>
+          <tr><td class="px-3 py-2 font-mono">OVER(ORDER BY x) &mdash; with ORDER BY</td><td class="px-3 py-2"><code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code></td><td class="px-3 py-2"><strong>Running total</strong> (cumulative up to current row)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-sm text-indigo-900 mt-3">
+      Adding <code>ORDER BY</code> silently shrinks the upper bound from <code>UNBOUNDED FOLLOWING</code> to
+      <code>CURRENT ROW</code> &mdash; turning a grand total into a running total. Handy trick for a % of total:
+      <code>Amount * 100.0 / SUM(Amount) OVER()</code>.
+    </p>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6 mb-6">
+    <div class="bg-sky-50 border border-sky-200 rounded-xl p-5">
+      <h4 class="font-bold text-sky-800 mb-2">ROWS</h4>
+      <p class="text-sm text-slate-700">Counts <strong>physical rows</strong> around the current row. <code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> = exactly 3 rows. Predictable, fast, ignores ties. <strong>Use this for running totals &amp; moving averages.</strong></p>
+    </div>
+    <div class="bg-purple-50 border border-purple-200 rounded-xl p-5">
+      <h4 class="font-bold text-purple-800 mb-2">RANGE</h4>
+      <p class="text-sm text-slate-700">Works on <strong>logical value ranges</strong>. All rows with the <em>same ORDER BY value</em> as the current row are treated as one peer group and included together. This is the sneaky default and can inflate running totals on ties.</p>
+    </div>
+  </div>
+
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="cm">-- 3-day moving average (current + 2 previous rows)</span>
+<span class="kw">SELECT</span> Region, SaleDate, Amount,
+    <span class="fn">AVG</span>(Amount) <span class="kw">OVER</span>(
+        <span class="kw">PARTITION BY</span> Region <span class="kw">ORDER BY</span> SaleDate
+        <span class="kw">ROWS BETWEEN</span> <span class="nu">2</span> <span class="kw">PRECEDING</span> <span class="kw">AND</span> <span class="kw">CURRENT ROW</span>
+    ) <span class="kw">AS</span> MovingAvg3
+<span class="kw">FROM</span> Sales;
+
+<span class="cm">-- Common frame keywords:</span>
+<span class="cm">--   UNBOUNDED PRECEDING  = start of partition</span>
+<span class="cm">--   N PRECEDING          = N rows before current</span>
+<span class="cm">--   CURRENT ROW          = the current row</span>
+<span class="cm">--   N FOLLOWING          = N rows after current</span>
+<span class="cm">--   UNBOUNDED FOLLOWING  = end of partition</span></code></pre>
+  </div>
+
+  <!-- Sum of the 2 rows BEFORE the current row (excluding current) -->
+  <h3 class="text-xl font-semibold text-teal-900 mb-2">Sum of the 2 rows BEFORE the current row (excluding current)</h3>
+  <p class="text-slate-700 mb-3">
+    Want to sum <strong>only the two previous rows</strong> and leave the current row out? Frame it from
+    <code>2 PRECEDING</code> to <code>1 PRECEDING</code> -- the window ends one row <em>before</em> the current one.
+  </p>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="kw">SELECT</span> Region, SaleDate, Amount,
+    <span class="fn">SUM</span>(Amount) <span class="kw">OVER</span>(
+        <span class="kw">PARTITION BY</span> Region <span class="kw">ORDER BY</span> SaleDate
+        <span class="kw">ROWS BETWEEN</span> <span class="nu">2</span> <span class="kw">PRECEDING</span> <span class="kw">AND</span> <span class="nu">1</span> <span class="kw">PRECEDING</span>
+    ) <span class="kw">AS</span> SumPrev2
+<span class="kw">FROM</span> Sales;</code></pre>
+  </div>
+  <div class="overflow-x-auto tbl-scroll mb-3">
+    <table class="w-full text-sm border border-teal-200 rounded-lg bg-white">
+      <thead class="bg-teal-100 text-teal-900"><tr>
+        <th class="px-3 py-2 text-left">Region</th><th class="px-3 py-2 text-left">SaleDate</th>
+        <th class="px-3 py-2 text-right">Amount</th><th class="px-3 py-2 text-right">SumPrev2</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5">East</td><td class="px-3 py-1.5">01-05</td><td class="px-3 py-1.5 text-right">1000</td><td class="px-3 py-1.5 text-right text-slate-400">NULL</td></tr>
+        <tr><td class="px-3 py-1.5">East</td><td class="px-3 py-1.5">01-08</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right font-semibold text-teal-700">1000</td></tr>
+        <tr><td class="px-3 py-1.5">East</td><td class="px-3 py-1.5">01-12</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right font-semibold text-teal-700">2500</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">01-03</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right text-slate-400">NULL</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">01-15</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right font-semibold text-teal-700">2000</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">01-20</td><td class="px-3 py-1.5 text-right">800</td><td class="px-3 py-1.5 text-right font-semibold text-teal-700">4000</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">01-28</td><td class="px-3 py-1.5 text-right">500</td><td class="px-3 py-1.5 text-right font-semibold text-teal-700">2800</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="text-sm text-slate-600 mb-6">
+    The first row of each region is <code>NULL</code> (no preceding rows), and the second row only has one preceding
+    row so it sums just that one. Wrap in <code>ISNULL(..., 0)</code> if you'd rather see zeros. Compare this with
+    <code>ROWS BETWEEN 1 PRECEDING AND CURRENT ROW</code>, which <em>includes</em> the current row for a rolling 2-row window.
+  </p>
+
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
+    <h4 class="font-bold text-amber-800 mb-3"> Gotchas &mdash; Frames</h4>
+    <div class="overflow-x-auto tbl-scroll">
+      <table class="w-full text-sm border border-amber-200 rounded-lg bg-white">
+        <thead class="bg-amber-100 text-amber-900"><tr>
+          <th class="px-3 py-2 text-left w-1/3">Gotcha</th><th class="px-3 py-2 text-left">What happens / how to avoid it</th></tr></thead>
+        <tbody class="divide-y divide-amber-100 text-slate-700">
+          <tr><td class="px-3 py-2 font-semibold">Default frame is RANGE, not ROWS</td><td class="px-3 py-2">With ORDER BY the default is <code>RANGE UNBOUNDED PRECEDING AND CURRENT ROW</code>. On tied values RANGE lumps peers together so a running total can "jump". Write <code>ROWS</code> explicitly for row-by-row behavior.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">RANGE with N PRECEDING/FOLLOWING</td><td class="px-3 py-2">A numeric range window needs a numeric/date ORDER BY and is only supported in limited forms in SQL Server &mdash; most numeric-offset windows require <code>ROWS</code>.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">No ORDER BY = whole partition</td><td class="px-3 py-2"><code>OVER()</code> with no ORDER BY frames the entire partition (grand total). Ranking functions and PERCENTILE_* can't take a frame at all.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">Performance</td><td class="px-3 py-2">ROWS is generally cheaper than RANGE, which may build a bigger worktable/spool. Look for a "Window Spool" operator in the plan.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">Frames only apply to some functions</td><td class="px-3 py-2">A frame only makes sense with aggregates and FIRST_VALUE/LAST_VALUE &mdash; remember LAST_VALUE needs <code>ROWS ... UNBOUNDED FOLLOWING</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RANKING ============ -->
+<section id="ranking">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="text-3xl"></span>
+    <h2 class="text-3xl font-bold text-slate-900">Ranking Functions</h2>
+  </div>
+  <p class="text-slate-700 mb-6"><code>ROW_NUMBER, RANK, DENSE_RANK, NTILE</code> — they number/rank rows. <strong>ORDER BY inside OVER() is mandatory.</strong></p>
+
+  <div class="grid md:grid-cols-2 gap-4 mb-6">
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">ROW_NUMBER()</h4>
+      <p class="text-sm text-slate-600 mt-1"><strong>Layman:</strong> a strict 1,2,3,4 — no ties ever, even if values are equal (tie broken arbitrarily). <strong>Technical:</strong> unique sequential integer per partition.</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">RANK()</h4>
+      <p class="text-sm text-slate-600 mt-1"><strong>Layman:</strong> Olympic ranking — ties share a rank, then it <em>skips</em> (1,1,3). <strong>Technical:</strong> gaps after ties.</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">DENSE_RANK()</h4>
+      <p class="text-sm text-slate-600 mt-1"><strong>Layman:</strong> ties share a rank but <em>no gaps</em> (1,1,2). <strong>Technical:</strong> consecutive ranks.</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">NTILE(n)</h4>
+      <p class="text-sm text-slate-600 mt-1"><strong>Layman:</strong> chop rows into <code>n</code> roughly-equal buckets (quartiles, deciles). <strong>Technical:</strong> distributes rows into n groups; earlier groups get the extra rows.</p>
+    </div>
+  </div>
+
+  <h3 class="text-xl font-semibold text-slate-800 mb-2">Example — rank salespeople by Amount</h3>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="kw">SELECT</span> SalesPerson, Amount,
+    <span class="fn">ROW_NUMBER</span>() <span class="kw">OVER</span>(<span class="kw">ORDER BY</span> Amount <span class="kw">DESC</span>) <span class="kw">AS</span> rn,
+    <span class="fn">RANK</span>()       <span class="kw">OVER</span>(<span class="kw">ORDER BY</span> Amount <span class="kw">DESC</span>) <span class="kw">AS</span> rnk,
+    <span class="fn">DENSE_RANK</span>() <span class="kw">OVER</span>(<span class="kw">ORDER BY</span> Amount <span class="kw">DESC</span>) <span class="kw">AS</span> dense,
+    <span class="fn">NTILE</span>(<span class="nu">3</span>)    <span class="kw">OVER</span>(<span class="kw">ORDER BY</span> Amount <span class="kw">DESC</span>) <span class="kw">AS</span> tile
+<span class="kw">FROM</span> Sales;</code></pre>
+  </div>
+  <div class="overflow-x-auto tbl-scroll mb-4">
+    <table class="w-full text-sm border border-slate-200 rounded-lg">
+      <thead class="bg-slate-100"><tr>
+        <th class="px-3 py-2 text-left">SalesPerson</th><th class="px-3 py-2 text-right">Amount</th>
+        <th class="px-3 py-2 text-right">ROW_NUMBER</th><th class="px-3 py-2 text-right">RANK</th><th class="px-3 py-2 text-right">DENSE_RANK</th><th class="px-3 py-2 text-right">NTILE(3)</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5">Carol</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">1</td><td class="px-3 py-1.5 text-right">1</td><td class="px-3 py-1.5 text-right">1</td><td class="px-3 py-1.5 text-right">1</td></tr>
+        <tr><td class="px-3 py-1.5">Dave</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">2</td><td class="px-3 py-1.5 text-right">1</td><td class="px-3 py-1.5 text-right">1</td><td class="px-3 py-1.5 text-right">1</td></tr>
+        <tr><td class="px-3 py-1.5">Alice</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">3</td><td class="px-3 py-1.5 text-right">3</td><td class="px-3 py-1.5 text-right">2</td><td class="px-3 py-1.5 text-right">1</td></tr>
+        <tr><td class="px-3 py-1.5">Bob</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">4</td><td class="px-3 py-1.5 text-right">3</td><td class="px-3 py-1.5 text-right">2</td><td class="px-3 py-1.5 text-right">2</td></tr>
+        <tr><td class="px-3 py-1.5">Alice</td><td class="px-3 py-1.5 text-right">1000</td><td class="px-3 py-1.5 text-right">5</td><td class="px-3 py-1.5 text-right">5</td><td class="px-3 py-1.5 text-right">3</td><td class="px-3 py-1.5 text-right">2</td></tr>
+        <tr><td class="px-3 py-1.5">Carol</td><td class="px-3 py-1.5 text-right">800</td><td class="px-3 py-1.5 text-right">6</td><td class="px-3 py-1.5 text-right">6</td><td class="px-3 py-1.5 text-right">4</td><td class="px-3 py-1.5 text-right">3</td></tr>
+        <tr><td class="px-3 py-1.5">Dave</td><td class="px-3 py-1.5 text-right">500</td><td class="px-3 py-1.5 text-right">7</td><td class="px-3 py-1.5 text-right">7</td><td class="px-3 py-1.5 text-right">5</td><td class="px-3 py-1.5 text-right">3</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="text-sm text-slate-600 mb-4"> Notice at 2000: ROW_NUMBER gives 1&amp;2, RANK gives 1&amp;1 then jumps to 3, DENSE_RANK gives 1&amp;1 then 2. NTILE(3) splits 7 rows into buckets of 3,2,2.</p>
+
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
+    <h4 class="font-bold text-amber-800 mb-3"> Gotchas &mdash; Ranking functions</h4>
+    <div class="overflow-x-auto tbl-scroll">
+      <table class="w-full text-sm border border-amber-200 rounded-lg bg-white">
+        <thead class="bg-amber-100 text-amber-900"><tr>
+          <th class="px-3 py-2 text-left w-1/3">Gotcha</th><th class="px-3 py-2 text-left">What happens / how to avoid it</th></tr></thead>
+        <tbody class="divide-y divide-amber-100 text-slate-700">
+          <tr><td class="px-3 py-2 font-semibold">ROW_NUMBER on ties is non-deterministic</td><td class="px-3 py-2">If the ORDER BY column has duplicates, which tied row gets 1 vs 2 can change between runs. Add a tie-breaker (e.g. <code>ORDER BY Amount DESC, SaleId</code>) for stable results &mdash; critical for paging &amp; dedup.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">RANK leaves gaps, DENSE_RANK doesn't</td><td class="px-3 py-2">Pick wrong and top-N breaks. "Top 3 distinct amounts" &rarr; <code>DENSE_RANK &lt;= 3</code>. "Top 3 rows" &rarr; <code>ROW_NUMBER &lt;= 3</code>.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">NTILE is NOT percentile-based</td><td class="px-3 py-2">It counts rows into equal buckets and ignores the actual <em>values</em>. Two identical amounts can land in different tiles &mdash; don't use it for value-based cutoffs.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">NTILE uneven split</td><td class="px-3 py-2">When rows don't divide evenly, the <em>first</em> groups get the extra rows (3,2,2 &mdash; not 2,2,3).</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">ORDER BY required, no frame</td><td class="px-3 py-2">These functions require ORDER BY in OVER() and cannot take a ROWS/RANGE frame clause.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">Classic dedup pattern</td><td class="px-3 py-2"><code>ROW_NUMBER() OVER(PARTITION BY dupKey ORDER BY ...) = 1</code> keeps one row per duplicate group.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ OFFSET / VALUE ============ -->
+<section id="offset">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="text-3xl">↔</span>
+    <h2 class="text-3xl font-bold text-slate-900">Offset &amp; Value Functions</h2>
+  </div>
+  <p class="text-slate-700 mb-6"><code>LAG, LEAD, FIRST_VALUE, LAST_VALUE</code> — peek at other rows relative to the current one.</p>
+
+  <div class="grid md:grid-cols-2 gap-4 mb-6">
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">LAG(col, n, default)</h4>
+      <p class="text-sm text-slate-600 mt-1"><strong>Layman:</strong> "what was the value <em>n</em> rows ago?" (previous). <strong>Technical:</strong> accesses a prior row without a self-join.</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">LEAD(col, n, default)</h4>
+      <p class="text-sm text-slate-600 mt-1"><strong>Layman:</strong> "what's the value <em>n</em> rows ahead?" (next). Perfect for "days until next purchase".</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">FIRST_VALUE(col)</h4>
+      <p class="text-sm text-slate-600 mt-1"><strong>Layman:</strong> the first value in the window. E.g. the earliest sale amount per region.</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">LAST_VALUE(col)</h4>
+      <p class="text-sm text-slate-600 mt-1"><strong>Layman:</strong> the last value in the window — but the default frame will lie to you (see gotcha ).</p>
+    </div>
+  </div>
+
+  <h3 class="text-xl font-semibold text-slate-800 mb-2">Example — compare each sale to the previous/next one</h3>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="kw">SELECT</span> Region, SaleDate, Amount,
+    <span class="fn">LAG</span>(Amount, <span class="nu">1</span>, <span class="nu">0</span>)  <span class="kw">OVER</span>(<span class="kw">PARTITION BY</span> Region <span class="kw">ORDER BY</span> SaleDate) <span class="kw">AS</span> PrevAmount,
+    <span class="fn">LEAD</span>(Amount, <span class="nu">1</span>, <span class="nu">0</span>) <span class="kw">OVER</span>(<span class="kw">PARTITION BY</span> Region <span class="kw">ORDER BY</span> SaleDate) <span class="kw">AS</span> NextAmount,
+    Amount - <span class="fn">LAG</span>(Amount, <span class="nu">1</span>, <span class="nu">0</span>) <span class="kw">OVER</span>(<span class="kw">PARTITION BY</span> Region <span class="kw">ORDER BY</span> SaleDate) <span class="kw">AS</span> DiffFromPrev,
+    <span class="fn">FIRST_VALUE</span>(Amount) <span class="kw">OVER</span>(<span class="kw">PARTITION BY</span> Region <span class="kw">ORDER BY</span> SaleDate) <span class="kw">AS</span> FirstInRegion,
+    <span class="cm">-- LAST_VALUE needs an explicit full frame to behave!</span>
+    <span class="fn">LAST_VALUE</span>(Amount) <span class="kw">OVER</span>(<span class="kw">PARTITION BY</span> Region <span class="kw">ORDER BY</span> SaleDate
+        <span class="kw">ROWS BETWEEN</span> <span class="kw">UNBOUNDED PRECEDING</span> <span class="kw">AND</span> <span class="kw">UNBOUNDED FOLLOWING</span>) <span class="kw">AS</span> LastInRegion
+<span class="kw">FROM</span> Sales
+<span class="kw">ORDER BY</span> Region, SaleDate;</code></pre>
+  </div>
+  <div class="overflow-x-auto tbl-scroll mb-4">
+    <table class="w-full text-sm border border-slate-200 rounded-lg">
+      <thead class="bg-slate-100"><tr>
+        <th class="px-3 py-2 text-left">Region</th><th class="px-3 py-2 text-left">Date</th><th class="px-3 py-2 text-right">Amount</th>
+        <th class="px-3 py-2 text-right">Prev</th><th class="px-3 py-2 text-right">Next</th><th class="px-3 py-2 text-right">Diff</th><th class="px-3 py-2 text-right">First</th><th class="px-3 py-2 text-right">Last</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5">East</td><td class="px-3 py-1.5">01-05</td><td class="px-3 py-1.5 text-right">1000</td><td class="px-3 py-1.5 text-right">0</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">1000</td><td class="px-3 py-1.5 text-right">1000</td><td class="px-3 py-1.5 text-right">1500</td></tr>
+        <tr><td class="px-3 py-1.5">East</td><td class="px-3 py-1.5">01-08</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">1000</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">500</td><td class="px-3 py-1.5 text-right">1000</td><td class="px-3 py-1.5 text-right">1500</td></tr>
+        <tr><td class="px-3 py-1.5">East</td><td class="px-3 py-1.5">01-12</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">0</td><td class="px-3 py-1.5 text-right">0</td><td class="px-3 py-1.5 text-right">1000</td><td class="px-3 py-1.5 text-right">1500</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">01-03</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">0</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">500</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">01-15</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">800</td><td class="px-3 py-1.5 text-right">0</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">500</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">01-20</td><td class="px-3 py-1.5 text-right">800</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">500</td><td class="px-3 py-1.5 text-right">-1200</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">500</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5">West</td><td class="px-3 py-1.5">01-28</td><td class="px-3 py-1.5 text-right">500</td><td class="px-3 py-1.5 text-right">800</td><td class="px-3 py-1.5 text-right">0</td><td class="px-3 py-1.5 text-right">-300</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">500</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
+    <h4 class="font-bold text-amber-800 mb-3"> Gotchas &mdash; Offset &amp; Value functions</h4>
+    <div class="overflow-x-auto tbl-scroll">
+      <table class="w-full text-sm border border-amber-200 rounded-lg bg-white">
+        <thead class="bg-amber-100 text-amber-900"><tr>
+          <th class="px-3 py-2 text-left w-1/3">Gotcha</th><th class="px-3 py-2 text-left">What happens / how to avoid it</th></tr></thead>
+        <tbody class="divide-y divide-amber-100 text-slate-700">
+          <tr><td class="px-3 py-2 font-semibold">THE big one: LAST_VALUE returns the current row</td><td class="px-3 py-2">Default frame with ORDER BY is <code>RANGE UNBOUNDED PRECEDING AND CURRENT ROW</code>, so "last" is always the current row. Add <code>ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code> for the true final value. (FIRST_VALUE is safe.)</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">LAG/LEAD default is NULL at edges</td><td class="px-3 py-2">The first row's LAG and last row's LEAD have nothing to point at. Supply the 3rd argument (default) to avoid NULLs.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">Offset must be non-negative</td><td class="px-3 py-2">The 2nd arg is a non-negative constant/expression &mdash; you can't LAG a negative number (use LEAD instead), and it can't reference a per-row column value in older versions.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">LAG/LEAD ignore the frame clause</td><td class="px-3 py-2">They only care about ORDER BY + offset. Don't try to add ROWS/RANGE to them.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">NULLs are returned as-is</td><td class="px-3 py-2">LAG doesn't skip NULLs to find the last non-null (no <code>IGNORE NULLS</code> before SQL Server 2022; 2022+ adds it for these functions).</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">Ties make FIRST/LAST_VALUE ambiguous</td><td class="px-3 py-2">Add a tie-breaker column to ORDER BY for deterministic results.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STATISTICAL ============ -->
+<section id="statistical">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="text-3xl"></span>
+    <h2 class="text-3xl font-bold text-slate-900">Statistical / Distribution Functions</h2>
+  </div>
+  <p class="text-slate-700 mb-6"><code>PERCENT_RANK, CUME_DIST, PERCENTILE_CONT, PERCENTILE_DISC</code> — relative standing &amp; percentiles.</p>
+
+  <div class="grid md:grid-cols-2 gap-4 mb-6">
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">PERCENT_RANK()</h4>
+      <p class="text-sm text-slate-600 mt-1"><strong>Layman:</strong> "what % of rows rank below me?" Ranges 0→1. Formula: <code>(rank-1)/(rows-1)</code>. First row always 0.</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">CUME_DIST()</h4>
+      <p class="text-sm text-slate-600 mt-1"><strong>Layman:</strong> cumulative distribution — "% of rows at or below my value". Ranges (0→1]. Last row always 1.</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">PERCENTILE_CONT(p)</h4>
+      <p class="text-sm text-slate-600 mt-1"><strong>Layman:</strong> the value at percentile <code>p</code>, <em>interpolated</em> (can return a value not in the data — e.g. a median between two numbers).</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-indigo-700">PERCENTILE_DISC(p)</h4>
+      <p class="text-sm text-slate-600 mt-1"><strong>Layman:</strong> the value at percentile <code>p</code>, <em>discrete</em> — always returns an actual value from the data set.</p>
+    </div>
+  </div>
+
+  <h3 class="text-xl font-semibold text-slate-800 mb-2">Example — distribution &amp; median of Amount</h3>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="kw">SELECT</span> SalesPerson, Amount,
+    <span class="fn">PERCENT_RANK</span>() <span class="kw">OVER</span>(<span class="kw">ORDER BY</span> Amount) <span class="kw">AS</span> pct_rank,
+    <span class="fn">CUME_DIST</span>()    <span class="kw">OVER</span>(<span class="kw">ORDER BY</span> Amount) <span class="kw">AS</span> cume_dist,
+    <span class="cm">-- NOTE the weird WITHIN GROUP syntax + OVER(PARTITION BY)</span>
+    <span class="fn">PERCENTILE_CONT</span>(<span class="nu">0.5</span>) <span class="kw">WITHIN GROUP</span> (<span class="kw">ORDER BY</span> Amount) <span class="kw">OVER</span>() <span class="kw">AS</span> median_cont,
+    <span class="fn">PERCENTILE_DISC</span>(<span class="nu">0.5</span>) <span class="kw">WITHIN GROUP</span> (<span class="kw">ORDER BY</span> Amount) <span class="kw">OVER</span>() <span class="kw">AS</span> median_disc
+<span class="kw">FROM</span> Sales;</code></pre>
+  </div>
+  <div class="overflow-x-auto tbl-scroll mb-4">
+    <table class="w-full text-sm border border-slate-200 rounded-lg">
+      <thead class="bg-slate-100"><tr>
+        <th class="px-3 py-2 text-left">SalesPerson</th><th class="px-3 py-2 text-right">Amount</th>
+        <th class="px-3 py-2 text-right">PERCENT_RANK</th><th class="px-3 py-2 text-right">CUME_DIST</th><th class="px-3 py-2 text-right">median_cont</th><th class="px-3 py-2 text-right">median_disc</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5">Dave</td><td class="px-3 py-1.5 text-right">500</td><td class="px-3 py-1.5 text-right">0.000</td><td class="px-3 py-1.5 text-right">0.143</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">1500</td></tr>
+        <tr><td class="px-3 py-1.5">Carol</td><td class="px-3 py-1.5 text-right">800</td><td class="px-3 py-1.5 text-right">0.167</td><td class="px-3 py-1.5 text-right">0.286</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">1500</td></tr>
+        <tr><td class="px-3 py-1.5">Alice</td><td class="px-3 py-1.5 text-right">1000</td><td class="px-3 py-1.5 text-right">0.333</td><td class="px-3 py-1.5 text-right">0.429</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">1500</td></tr>
+        <tr><td class="px-3 py-1.5">Alice</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">0.500</td><td class="px-3 py-1.5 text-right">0.714</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">1500</td></tr>
+        <tr><td class="px-3 py-1.5">Bob</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">0.500</td><td class="px-3 py-1.5 text-right">0.714</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">1500</td></tr>
+        <tr><td class="px-3 py-1.5">Carol</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">0.833</td><td class="px-3 py-1.5 text-right">1.000</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">1500</td></tr>
+        <tr><td class="px-3 py-1.5">Dave</td><td class="px-3 py-1.5 text-right">2000</td><td class="px-3 py-1.5 text-right">0.833</td><td class="px-3 py-1.5 text-right">1.000</td><td class="px-3 py-1.5 text-right">1500</td><td class="px-3 py-1.5 text-right">1500</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
+    <h4 class="font-bold text-amber-800 mb-3"> Gotchas &mdash; Statistical functions</h4>
+    <div class="overflow-x-auto tbl-scroll">
+      <table class="w-full text-sm border border-amber-200 rounded-lg bg-white">
+        <thead class="bg-amber-100 text-amber-900"><tr>
+          <th class="px-3 py-2 text-left w-1/3">Gotcha</th><th class="px-3 py-2 text-left">What happens / how to avoid it</th></tr></thead>
+        <tbody class="divide-y divide-amber-100 text-slate-700">
+          <tr><td class="px-3 py-2 font-semibold">Bizarre syntax</td><td class="px-3 py-2">PERCENTILE_CONT/DISC use <code>WITHIN GROUP (ORDER BY ...) OVER (PARTITION BY ...)</code> &mdash; the ORDER BY lives in WITHIN GROUP, and OVER() takes only PARTITION BY (no ORDER BY, no frame).</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">CONT interpolates, DISC doesn't</td><td class="px-3 py-2">With an even row count <code>PERCENTILE_CONT(0.5)</code> can return a value <em>not in your data</em> (average of the two middle rows). <code>PERCENTILE_DISC(0.5)</code> always returns a real existing value.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">Same value on every row</td><td class="px-3 py-2">PERCENTILE_* return a partition-wide scalar repeated on every row. Wrap in DISTINCT/aggregate if you only want one row.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">PERCENT_RANK vs CUME_DIST edges</td><td class="px-3 py-2">PERCENT_RANK first row is always 0; CUME_DIST last row is always 1. PERCENT_RANK uses <code>(rank-1)/(n-1)</code>, CUME_DIST uses <code>(rows &le; current)/n</code>.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">Can be expensive</td><td class="px-3 py-2">PERCENTILE functions sort the whole partition &mdash; watch the execution plan on large sets.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">NULL handling differs</td><td class="px-3 py-2">NULLs are ignored by PERCENTILE_* but affect the counts in PERCENT_RANK/CUME_DIST depending on placement.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MASTER GOTCHAS ============ -->
+<section id="gotchas">
+  <h2 class="text-3xl font-bold text-slate-900 mb-4"> Master Gotchas (the ones that page you at 2am)</h2>
+  <div class="overflow-x-auto tbl-scroll">
+    <table class="w-full text-sm border border-amber-200 rounded-lg bg-white">
+      <thead class="bg-amber-100 text-amber-900"><tr>
+        <th class="px-3 py-2 text-left w-8">#</th><th class="px-3 py-2 text-left w-1/3">Gotcha</th><th class="px-3 py-2 text-left">What happens / how to avoid it</th></tr></thead>
+      <tbody class="divide-y divide-amber-100 text-slate-700">
+        <tr><td class="px-3 py-2">1</td><td class="px-3 py-2 font-semibold">Can't use in WHERE / GROUP BY / HAVING</td><td class="px-3 py-2">Window functions run <em>after</em> those clauses. Wrap the query in a CTE/subquery and filter on the alias in the outer query.</td></tr>
+        <tr><td class="px-3 py-2">2</td><td class="px-3 py-2 font-semibold">OVER() ORDER BY &ne; query ORDER BY</td><td class="px-3 py-2">The OVER() ORDER BY only orders the window computation. Final row order is undefined unless you add a query-level <code>ORDER BY</code>.</td></tr>
+        <tr><td class="px-3 py-2">3</td><td class="px-3 py-2 font-semibold">ORDER BY turns aggregate into running total</td><td class="px-3 py-2"><code>SUM(x) OVER(PARTITION BY r)</code> = grand total. Add <code>ORDER BY d</code> and it becomes a running total. One tiny change, very different results.</td></tr>
+        <tr><td class="px-3 py-2">4</td><td class="px-3 py-2 font-semibold">LAST_VALUE lies without a frame</td><td class="px-3 py-2">Always add <code>ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code> to get the real last value.</td></tr>
+        <tr><td class="px-3 py-2">5</td><td class="px-3 py-2 font-semibold">Non-deterministic ties</td><td class="px-3 py-2">ROW_NUMBER, FIRST_VALUE, LAG etc. give unstable results when ORDER BY has duplicates. Add a unique tie-breaker for reproducibility (paging, dedup, ETL).</td></tr>
+        <tr><td class="px-3 py-2">6</td><td class="px-3 py-2 font-semibold">No DISTINCT in a window aggregate</td><td class="px-3 py-2"><code>COUNT(DISTINCT x) OVER(...)</code> is not supported. Use a subquery/derived table or the <code>DENSE_RANK</code> trick.</td></tr>
+        <tr><td class="px-3 py-2">7</td><td class="px-3 py-2 font-semibold">Reuse windows with WINDOW clause (2022+)</td><td class="px-3 py-2">Repeating the same long <code>OVER(...)</code>? SQL Server 2022 supports the named <code>WINDOW</code> clause. On older versions you copy-paste (DRY weeps).</td></tr>
+        <tr><td class="px-3 py-2">8</td><td class="px-3 py-2 font-semibold">Integer division in AVG / running math</td><td class="px-3 py-2">If the column is <code>INT</code>, <code>AVG</code> and arithmetic truncate. Cast to <code>DECIMAL</code>/<code>FLOAT</code> first.</td></tr>
+        <tr><td class="px-3 py-2">9</td><td class="px-3 py-2 font-semibold">Give it the right index</td><td class="px-3 py-2">An index matching <code>PARTITION BY</code> then <code>ORDER BY</code> lets SQL Server skip a sort. Watch for expensive Sort + Window Spool operators; batch mode (columnstore / 2019+) speeds windows up a lot.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ CHEAT SHEET ============ -->
+<section id="cheatsheet">
+  <h2 class="text-3xl font-bold text-slate-900 mb-4"> Cheat Sheet</h2>
+  <div class="overflow-x-auto tbl-scroll">
+    <table class="w-full text-sm border border-slate-200 rounded-lg">
+      <thead class="bg-indigo-700 text-white"><tr>
+        <th class="px-3 py-2 text-left">Function</th><th class="px-3 py-2 text-left">Category</th>
+        <th class="px-3 py-2 text-left">Needs ORDER BY?</th><th class="px-3 py-2 text-left">Frame allowed?</th><th class="px-3 py-2 text-left">Use it for…</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5 font-mono">SUM/AVG/COUNT/MIN/MAX</td><td class="px-3 py-1.5">Aggregate</td><td class="px-3 py-1.5">Optional</td><td class="px-3 py-1.5"> Yes</td><td class="px-3 py-1.5">Totals, running totals, moving averages</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">ROW_NUMBER</td><td class="px-3 py-1.5">Ranking</td><td class="px-3 py-1.5"> Required</td><td class="px-3 py-1.5"> No</td><td class="px-3 py-1.5">Dedup, paging, "the Nth row"</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">RANK / DENSE_RANK</td><td class="px-3 py-1.5">Ranking</td><td class="px-3 py-1.5"> Required</td><td class="px-3 py-1.5"> No</td><td class="px-3 py-1.5">Leaderboards, top-N with ties</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">NTILE(n)</td><td class="px-3 py-1.5">Ranking</td><td class="px-3 py-1.5"> Required</td><td class="px-3 py-1.5"> No</td><td class="px-3 py-1.5">Quartiles/buckets by row count</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">LAG / LEAD</td><td class="px-3 py-1.5">Offset</td><td class="px-3 py-1.5"> Required</td><td class="px-3 py-1.5"> No</td><td class="px-3 py-1.5">Prev/next value, deltas, gaps</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">FIRST_VALUE / LAST_VALUE</td><td class="px-3 py-1.5">Value</td><td class="px-3 py-1.5"> Required</td><td class="px-3 py-1.5"> Yes (LAST needs it!)</td><td class="px-3 py-1.5">First/last in a window</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">PERCENT_RANK / CUME_DIST</td><td class="px-3 py-1.5">Statistical</td><td class="px-3 py-1.5"> Required</td><td class="px-3 py-1.5"> No</td><td class="px-3 py-1.5">Relative standing / distribution</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">PERCENTILE_CONT / DISC</td><td class="px-3 py-1.5">Statistical</td><td class="px-3 py-1.5">WITHIN GROUP</td><td class="px-3 py-1.5"> No</td><td class="px-3 py-1.5">Median, quantiles</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+
+<footer class="bg-slate-900 text-slate-400 text-sm">
+  <div class="max-w-6xl mx-auto px-6 py-8">
+    <p> Generated by <strong class="text-white"></strong> — SQL Server (T-SQL) Window Functions reference.</p>
+    <p class="mt-1">Tested syntax targets SQL Server 2012+. <code>WINDOW</code> clause &amp; <code>IGNORE NULLS</code> require SQL Server 2022+.</p>
+  </div>
+</footer>
+
+</body>
+</html>

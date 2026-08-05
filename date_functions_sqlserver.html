@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Server Date &amp; Time Functions - The Complete Reference</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html { scroll-behavior: smooth; }
+  pre { color: #d4d4d4; }
+  pre code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; color: #d4d4d4; }
+  .kw { color: #c586c0; }
+  .fn { color: #dcdcaa; }
+  .st { color: #ce9178; }
+  .nu { color: #b5cea8; }
+  .cm { color: #6a9955; font-style: italic; }
+  .tbl-scroll::-webkit-scrollbar { height: 8px; }
+  .tbl-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  .badge { font-size: 0.7rem; padding: 0.1rem 0.5rem; border-radius: 9999px; font-weight: 600; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased">
+
+<!-- ============ HEADER ============ -->
+<header class="bg-gradient-to-r from-cyan-700 via-teal-700 to-emerald-700 text-white">
+  <div class="max-w-6xl mx-auto px-6 py-14">
+    <p class="uppercase tracking-widest text-teal-200 text-sm font-semibold">SQL Server &middot; T-SQL Reference</p>
+    <h1 class="text-4xl md:text-5xl font-extrabold mt-2">Date &amp; Time Functions - The Complete Reference</h1>
+    <p class="mt-4 text-lg text-teal-100 max-w-3xl">
+      Every SQL Server date/time function you need for real work and interviews - organized by task, with sample data,
+      copy-paste examples, version notes, and the gotchas that trip people up.
+    </p>
+    <div class="mt-6 flex flex-wrap gap-2 text-sm">
+      <span class="bg-white/15 rounded-full px-3 py-1">Current date/time</span>
+      <span class="bg-white/15 rounded-full px-3 py-1">Extract parts</span>
+      <span class="bg-white/15 rounded-full px-3 py-1">Arithmetic</span>
+      <span class="bg-white/15 rounded-full px-3 py-1">Truncate &amp; bucket</span>
+      <span class="bg-white/15 rounded-full px-3 py-1">Convert &amp; format</span>
+      <span class="bg-white/15 rounded-full px-3 py-1">Time zones</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ TOC ============ -->
+<nav class="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-200 shadow-sm">
+  <div class="max-w-6xl mx-auto px-6 py-3 flex flex-wrap gap-x-5 gap-y-1 text-sm font-medium text-teal-700">
+    <a href="#data" class="hover:underline">Sample Data</a>
+    <a href="#now" class="hover:underline">Current Date/Time</a>
+    <a href="#parts" class="hover:underline">Extract Parts</a>
+    <a href="#arithmetic" class="hover:underline">Arithmetic</a>
+    <a href="#truncate" class="hover:underline">Truncate &amp; Bucket</a>
+    <a href="#construct" class="hover:underline">Construct &amp; Validate</a>
+    <a href="#convert" class="hover:underline">Convert &amp; Format</a>
+    <a href="#timezone" class="hover:underline">Time Zones</a>
+    <a href="#units" class="hover:underline">Units Reference</a>
+    <a href="#gotchas" class="hover:underline">Gotchas</a>
+    <a href="#interview" class="hover:underline">Interview Tips</a>
+    <a href="#cheatsheet" class="hover:underline">Cheat Sheet</a>
+  </div>
+</nav>
+
+<main class="max-w-6xl mx-auto px-6 py-10 space-y-16">
+
+<!-- Version legend -->
+<div class="flex flex-wrap items-center gap-3 text-sm">
+  <span class="text-slate-500 font-medium">Version badges:</span>
+  <span class="badge bg-emerald-100 text-emerald-800">All versions</span>
+  <span class="badge bg-amber-100 text-amber-800">2012+</span>
+  <span class="badge bg-orange-100 text-orange-800">2022+</span>
+  <span class="badge bg-rose-100 text-rose-800">2025+</span>
+</div>
+
+<!-- ============ SAMPLE DATA ============ -->
+<section id="data">
+  <h2 class="text-3xl font-bold text-slate-900 mb-4">Sample data (used across examples)</h2>
+  <p class="mb-4 text-slate-700">A tiny <code>Orders</code> table. Assume "today" is <code>2026-04-23 14:35:47</code> for the current-date examples.</p>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm">
+<pre><code><span class="kw">CREATE TABLE</span> Orders (
+    OrderId    <span class="kw">INT</span>,
+    Customer   <span class="kw">VARCHAR</span>(<span class="nu">20</span>),
+    OrderDate  <span class="kw">DATETIME2</span>,
+    Amount     <span class="kw">DECIMAL</span>(<span class="nu">10</span>,<span class="nu">2</span>)
+);
+
+<span class="kw">INSERT INTO</span> Orders <span class="kw">VALUES</span>
+(<span class="nu">1</span>, <span class="st">'Alice'</span>, <span class="st">'2026-01-31 09:15:00'</span>, <span class="nu">1000</span>),
+(<span class="nu">2</span>, <span class="st">'Bob'</span>,   <span class="st">'2026-02-01 18:42:10'</span>, <span class="nu">1500</span>),
+(<span class="nu">3</span>, <span class="st">'Carol'</span>, <span class="st">'2026-04-23 14:35:47'</span>, <span class="nu">2000</span>),
+(<span class="nu">4</span>, <span class="st">'Dave'</span>,  <span class="st">'2026-12-31 23:59:59'</span>, <span class="nu">800</span>);</code></pre>
+  </div>
+</section>
+
+<!-- ============ CURRENT DATE / TIME ============ -->
+<section id="now">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">1. Getting the current date &amp; time</h2>
+  <p class="text-slate-700 mb-5"><strong>Layman:</strong> "What's the time right now?" <strong>Technical:</strong> local server time, UTC time, and high-precision variants.</p>
+  <div class="overflow-x-auto tbl-scroll mb-5">
+    <table class="w-full text-sm border border-slate-200 rounded-lg bg-white">
+      <thead class="bg-slate-100 text-slate-700"><tr>
+        <th class="px-3 py-2 text-left">Function</th><th class="px-3 py-2 text-left">Returns</th>
+        <th class="px-3 py-2 text-left">Example output</th><th class="px-3 py-2 text-left">Notes</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-2 font-mono">GETDATE()</td><td class="px-3 py-2">datetime</td><td class="px-3 py-2 font-mono">2026-04-23 14:35:47.123</td><td class="px-3 py-2">Local server time. Most common. <span class="badge bg-emerald-100 text-emerald-800">All</span></td></tr>
+        <tr><td class="px-3 py-2 font-mono">CURRENT_TIMESTAMP</td><td class="px-3 py-2">datetime</td><td class="px-3 py-2 font-mono">2026-04-23 14:35:47.123</td><td class="px-3 py-2">ANSI-standard synonym for GETDATE(). Portable. <span class="badge bg-emerald-100 text-emerald-800">All</span></td></tr>
+        <tr><td class="px-3 py-2 font-mono">SYSDATETIME()</td><td class="px-3 py-2">datetime2(7)</td><td class="px-3 py-2 font-mono">2026-04-23 14:35:47.1234567</td><td class="px-3 py-2">Higher precision (100ns). Prefer for new code. <span class="badge bg-emerald-100 text-emerald-800">All</span></td></tr>
+        <tr><td class="px-3 py-2 font-mono">GETUTCDATE()</td><td class="px-3 py-2">datetime</td><td class="px-3 py-2 font-mono">2026-04-23 19:35:47.123</td><td class="px-3 py-2">Current UTC time. <span class="badge bg-emerald-100 text-emerald-800">All</span></td></tr>
+        <tr><td class="px-3 py-2 font-mono">SYSUTCDATETIME()</td><td class="px-3 py-2">datetime2(7)</td><td class="px-3 py-2 font-mono">2026-04-23 19:35:47.1234567</td><td class="px-3 py-2">High-precision UTC. <span class="badge bg-emerald-100 text-emerald-800">All</span></td></tr>
+        <tr><td class="px-3 py-2 font-mono">SYSDATETIMEOFFSET()</td><td class="px-3 py-2">datetimeoffset</td><td class="px-3 py-2 font-mono">2026-04-23 14:35:47.12 -05:00</td><td class="px-3 py-2">Includes the time-zone offset. <span class="badge bg-emerald-100 text-emerald-800">All</span></td></tr>
+        <tr><td class="px-3 py-2 font-mono">CURRENT_DATE</td><td class="px-3 py-2">date</td><td class="px-3 py-2 font-mono">2026-04-23</td><td class="px-3 py-2">ANSI date-only. <span class="badge bg-rose-100 text-rose-800">2025+</span> only</td></tr>
+        <tr><td class="px-3 py-2 font-mono">CAST(GETDATE() AS DATE)</td><td class="px-3 py-2">date</td><td class="px-3 py-2 font-mono">2026-04-23</td><td class="px-3 py-2">Date-only on any version. <span class="badge bg-emerald-100 text-emerald-800">All</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm">
+<pre><code><span class="cm">-- Today's date (works everywhere, pre-2025):</span>
+<span class="kw">SELECT</span> <span class="fn">CAST</span>(<span class="fn">GETDATE</span>() <span class="kw">AS</span> <span class="kw">DATE</span>);        <span class="cm">-- 2026-04-23</span>
+<span class="kw">SELECT</span> <span class="fn">CONVERT</span>(<span class="kw">DATE</span>, <span class="fn">GETDATE</span>());      <span class="cm">-- 2026-04-23</span>
+
+<span class="cm">-- Local vs UTC:</span>
+<span class="kw">SELECT</span> <span class="fn">GETDATE</span>(), <span class="fn">GETUTCDATE</span>();      <span class="cm">-- local, then UTC</span></code></pre>
+  </div>
+</section>
+
+<!-- ============ EXTRACT PARTS ============ -->
+<section id="parts">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">2. Extracting date parts</h2>
+  <p class="text-slate-700 mb-5"><code>DATEPART</code>, <code>DATENAME</code>, and the <code>DAY/MONTH/YEAR</code> shortcuts.</p>
+
+  <div class="grid md:grid-cols-2 gap-4 mb-6">
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-teal-700">DATEPART(part, date)</h4>
+      <p class="text-sm text-slate-600 mt-1">Returns an <strong>int</strong>. Use for math and comparisons. E.g. <code>DATEPART(MONTH, d)</code> = <code>4</code>.</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-teal-700">DATENAME(part, date)</h4>
+      <p class="text-sm text-slate-600 mt-1">Returns a <strong>varchar</strong>. Use only for text names. E.g. <code>DATENAME(MONTH, d)</code> = <code>'April'</code>.</p>
+    </div>
+  </div>
+
+  <p class="text-slate-700 mb-2 font-semibold">When do they actually differ? Only MONTH and WEEKDAY:</p>
+  <div class="overflow-x-auto tbl-scroll mb-5">
+    <table class="w-full text-sm border border-slate-200 rounded-lg bg-white">
+      <thead class="bg-slate-100"><tr>
+        <th class="px-3 py-2 text-left">Part</th><th class="px-3 py-2 text-left">DATEPART()</th><th class="px-3 py-2 text-left">DATENAME()</th><th class="px-3 py-2 text-left">Different?</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5">MONTH</td><td class="px-3 py-1.5 font-mono">4</td><td class="px-3 py-1.5 font-mono">'April'</td><td class="px-3 py-1.5 font-semibold text-teal-700">Yes - name vs number</td></tr>
+        <tr><td class="px-3 py-1.5">WEEKDAY</td><td class="px-3 py-1.5 font-mono">5</td><td class="px-3 py-1.5 font-mono">'Thursday'</td><td class="px-3 py-1.5 font-semibold text-teal-700">Yes - name vs number</td></tr>
+        <tr><td class="px-3 py-1.5">YEAR</td><td class="px-3 py-1.5 font-mono">2026</td><td class="px-3 py-1.5 font-mono">'2026'</td><td class="px-3 py-1.5 text-slate-500">No (just type)</td></tr>
+        <tr><td class="px-3 py-1.5">DAY</td><td class="px-3 py-1.5 font-mono">23</td><td class="px-3 py-1.5 font-mono">'23'</td><td class="px-3 py-1.5 text-slate-500">No (just type)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="cm">-- Use DATEPART for math/comparison:</span>
+<span class="kw">WHERE</span> <span class="fn">DATEPART</span>(<span class="kw">MONTH</span>, OrderDate) = <span class="nu">4</span>
+
+<span class="cm">-- Use DATENAME only for display text:</span>
+<span class="kw">SELECT</span> <span class="fn">DATENAME</span>(<span class="kw">MONTH</span>,   OrderDate);   <span class="cm">-- 'April'</span>
+<span class="kw">SELECT</span> <span class="fn">DATENAME</span>(<span class="kw">WEEKDAY</span>, OrderDate);   <span class="cm">-- 'Thursday'</span>
+
+<span class="cm">-- Shortcuts: DAY / MONTH / YEAR == DATEPART(...)</span>
+<span class="kw">SELECT</span> <span class="fn">YEAR</span>(OrderDate), <span class="fn">MONTH</span>(OrderDate), <span class="fn">DAY</span>(OrderDate);
+<span class="cm">-- No shortcut for HOUR/MINUTE/WEEK - use DATEPART for those.</span>
+
+<span class="cm">-- Pivot by day name:</span>
+<span class="fn">SUM</span>(<span class="kw">CASE WHEN</span> <span class="fn">DATENAME</span>(<span class="kw">WEEKDAY</span>, OrderDate) = <span class="st">'Monday'</span> <span class="kw">THEN</span> Amount <span class="kw">ELSE</span> <span class="nu">0</span> <span class="kw">END</span>) <span class="kw">AS</span> Monday</code></pre>
+  </div>
+  <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 text-sm text-sky-900">
+    <strong>Rule of thumb:</strong> default to <code>DATEPART</code> everywhere; reach for <code>DATENAME</code> only when you need the word ('April'/'Thursday').
+    The <code>DAY()/MONTH()/YEAR()</code> shortcuts are just less typing for the same result.
+  </div>
+</section>
+
+<!-- ============ ARITHMETIC ============ -->
+<section id="arithmetic">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">3. Date arithmetic</h2>
+  <p class="text-slate-700 mb-5"><code>DATEADD</code> adds/subtracts intervals; <code>DATEDIFF</code> measures the gap; <code>DATEDIFF_BIG</code> handles huge gaps.</p>
+
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="cm">-- DATEADD(part, number, date): add or subtract</span>
+<span class="fn">DATEADD</span>(<span class="kw">DAY</span>,    <span class="nu">7</span>, <span class="st">'2026-04-23'</span>)          <span class="cm">-- 2026-04-30</span>
+<span class="fn">DATEADD</span>(<span class="kw">DAY</span>,   <span class="nu">-1</span>, <span class="st">'2026-04-23'</span>)          <span class="cm">-- 2026-04-22 (yesterday)</span>
+<span class="fn">DATEADD</span>(<span class="kw">MONTH</span>,  <span class="nu">1</span>, <span class="st">'2026-01-31'</span>)          <span class="cm">-- 2026-02-28 (clamps!)</span>
+<span class="fn">DATEADD</span>(<span class="kw">HOUR</span>,   <span class="nu">3</span>, <span class="st">'2026-04-23 10:00'</span>)     <span class="cm">-- 2026-04-23 13:00</span>
+
+<span class="cm">-- DATEDIFF(part, start, end) = end - start</span>
+<span class="fn">DATEDIFF</span>(<span class="kw">DAY</span>,   <span class="st">'2026-04-01'</span>, <span class="st">'2026-04-23'</span>)   <span class="cm">-- 22</span>
+<span class="fn">DATEDIFF</span>(<span class="kw">MONTH</span>, <span class="st">'2026-01-01'</span>, <span class="st">'2026-04-23'</span>)   <span class="cm">-- 3</span>
+<span class="fn">DATEDIFF</span>(<span class="kw">MINUTE</span>,<span class="st">'10:00'</span>,      <span class="st">'10:45'</span>)        <span class="cm">-- 45</span>
+
+<span class="cm">-- DATEDIFF_BIG: use when the answer overflows INT (e.g. seconds over ~68 yrs)</span>
+<span class="fn">DATEDIFF_BIG</span>(<span class="kw">SECOND</span>, <span class="st">'1970-01-01'</span>, <span class="fn">SYSUTCDATETIME</span>())</code></pre>
+  </div>
+
+  <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900 mb-4">
+    <strong>DATEDIFF counts boundary crossings, not full intervals.</strong>
+    <code>DATEDIFF(YEAR, '2025-12-31', '2026-01-01')</code> = <strong>1</strong> (crossed a year boundary) even though the dates are 1 day apart.
+    Same trap with MONTH: <code>DATEDIFF(MONTH, '2026-01-31', '2026-02-01')</code> = <strong>1</strong>.
+  </div>
+
+  <p class="text-slate-700 mb-2 font-semibold">Handy patterns:</p>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm">
+<pre><code><span class="cm">-- "Day after install" (retention):</span>
+<span class="kw">WHERE</span> <span class="fn">DATEDIFF</span>(<span class="kw">DAY</span>, install_dt, event_date) = <span class="nu">1</span>
+<span class="cm">-- or equivalently:</span>
+<span class="kw">WHERE</span> event_date = <span class="fn">DATEADD</span>(<span class="kw">DAY</span>, <span class="nu">1</span>, install_dt)
+
+<span class="cm">-- Age in whole years (correct - no boundary bug):</span>
+<span class="fn">DATEDIFF</span>(<span class="kw">YEAR</span>, dob, <span class="fn">GETDATE</span>())
+  - <span class="kw">CASE WHEN</span> <span class="fn">DATEADD</span>(<span class="kw">YEAR</span>, <span class="fn">DATEDIFF</span>(<span class="kw">YEAR</span>, dob, <span class="fn">GETDATE</span>()), dob) &gt; <span class="fn">GETDATE</span>()
+         <span class="kw">THEN</span> <span class="nu">1</span> <span class="kw">ELSE</span> <span class="nu">0</span> <span class="kw">END</span>
+
+<span class="cm">-- Gaps-and-islands: consecutive dates share a constant group key</span>
+<span class="fn">DATEADD</span>(<span class="kw">DAY</span>, -<span class="fn">ROW_NUMBER</span>() <span class="kw">OVER</span>(<span class="kw">ORDER BY</span> d), d) <span class="kw">AS</span> grp</code></pre>
+  </div>
+</section>
+
+<!-- ============ TRUNCATE & BUCKET ============ -->
+<section id="truncate">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">4. Truncation &amp; bucketing</h2>
+  <p class="text-slate-700 mb-5"><code>DATETRUNC</code> (fixed 1-unit), <code>DATE_BUCKET</code> (custom N-unit), and <code>EOMONTH</code>.</p>
+
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="cm">-- DATETRUNC(part, date): zero out everything below 'part'  (2022+)</span>
+<span class="cm">-- Given '2026-04-23 14:35:47.123':</span>
+<span class="fn">DATETRUNC</span>(<span class="kw">YEAR</span>,   d)   <span class="cm">-- 2026-01-01 00:00:00</span>
+<span class="fn">DATETRUNC</span>(<span class="kw">MONTH</span>,  d)   <span class="cm">-- 2026-04-01 00:00:00</span>
+<span class="fn">DATETRUNC</span>(<span class="kw">DAY</span>,    d)   <span class="cm">-- 2026-04-23 00:00:00 (strip time)</span>
+<span class="fn">DATETRUNC</span>(<span class="kw">HOUR</span>,   d)   <span class="cm">-- 2026-04-23 14:00:00</span>
+
+<span class="cm">-- Pre-2022 workaround for month truncation (0 = 1900-01-01 epoch):</span>
+<span class="fn">DATEADD</span>(<span class="kw">MONTH</span>, <span class="fn">DATEDIFF</span>(<span class="kw">MONTH</span>, <span class="nu">0</span>, OrderDate), <span class="nu">0</span>)   <span class="cm">-- first of month</span></code></pre>
+  </div>
+
+  <p class="text-slate-700 mb-2 font-semibold">Custom-size buckets with DATE_BUCKET <span class="badge bg-orange-100 text-orange-800">2022+</span>:</p>
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="cm">-- DATE_BUCKET(part, width, date [, origin])</span>
+<span class="fn">DATE_BUCKET</span>(<span class="kw">MINUTE</span>, <span class="nu">15</span>, event_time)   <span class="cm">-- 15-minute buckets: 10:00, 10:15, 10:30...</span>
+<span class="fn">DATE_BUCKET</span>(<span class="kw">HOUR</span>,    <span class="nu">3</span>, event_time)   <span class="cm">-- 3-hour buckets: 09:00, 12:00, 15:00</span>
+<span class="fn">DATE_BUCKET</span>(<span class="kw">DAY</span>,     <span class="nu">7</span>, event_time)   <span class="cm">-- weekly buckets</span>
+<span class="fn">DATE_BUCKET</span>(<span class="kw">MONTH</span>,   <span class="nu">3</span>, event_time)   <span class="cm">-- quarterly buckets</span>
+
+<span class="cm">-- Group daily/monthly (most common real-world use):</span>
+<span class="kw">SELECT</span> <span class="fn">DATETRUNC</span>(<span class="kw">MONTH</span>, OrderDate) <span class="kw">AS</span> mth, <span class="fn">SUM</span>(Amount)
+<span class="kw">FROM</span> Orders
+<span class="kw">GROUP BY</span> <span class="fn">DATETRUNC</span>(<span class="kw">MONTH</span>, OrderDate);</code></pre>
+  </div>
+
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-3">
+<pre><code><span class="cm">-- EOMONTH: last day of the month (handles 28/29/30/31 for you)</span>
+<span class="fn">EOMONTH</span>(<span class="st">'2026-04-22'</span>)       <span class="cm">-- 2026-04-30</span>
+<span class="fn">EOMONTH</span>(<span class="st">'2026-02-10'</span>)       <span class="cm">-- 2026-02-28 (leap-aware)</span>
+<span class="fn">EOMONTH</span>(<span class="st">'2026-04-22'</span>, <span class="nu">1</span>)    <span class="cm">-- 2026-05-31 (+1 month)</span>
+
+<span class="cm">-- First day of month = day after previous month's end:</span>
+<span class="fn">DATEADD</span>(<span class="kw">DAY</span>, <span class="nu">1</span>, <span class="fn">EOMONTH</span>(OrderDate, <span class="nu">-1</span>))</code></pre>
+  </div>
+  <p class="text-sm text-slate-600">
+    <strong>DATETRUNC vs DATE_BUCKET:</strong> DATETRUNC always makes 1-unit buckets (one month, one hour). DATE_BUCKET lets you pick the width (15 min, 3 months). Both are 2022+.
+  </p>
+</section>
+
+<!-- ============ CONSTRUCT & VALIDATE ============ -->
+<section id="construct">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">5. Constructing &amp; validating dates</h2>
+  <div class="overflow-x-auto tbl-scroll mb-5">
+    <table class="w-full text-sm border border-slate-200 rounded-lg bg-white">
+      <thead class="bg-slate-100"><tr>
+        <th class="px-3 py-2 text-left">Function</th><th class="px-3 py-2 text-left">Purpose</th><th class="px-3 py-2 text-left">Example</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5 font-mono">DATEFROMPARTS(y,m,d)</td><td class="px-3 py-1.5">Build a DATE</td><td class="px-3 py-1.5 font-mono">DATEFROMPARTS(2026,4,22) -&gt; 2026-04-22</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">DATETIME2FROMPARTS(...)</td><td class="px-3 py-1.5">Build datetime2 (with precision)</td><td class="px-3 py-1.5 font-mono">y,m,d,h,mi,s,frac,prec</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">DATETIMEFROMPARTS(...)</td><td class="px-3 py-1.5">Build datetime</td><td class="px-3 py-1.5 font-mono">y,m,d,h,mi,s,ms</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">SMALLDATETIMEFROMPARTS(...)</td><td class="px-3 py-1.5">Build smalldatetime</td><td class="px-3 py-1.5 font-mono">y,m,d,h,mi</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">TIMEFROMPARTS(...)</td><td class="px-3 py-1.5">Build a TIME</td><td class="px-3 py-1.5 font-mono">TIMEFROMPARTS(14,30,0,0,0)</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">DATETIMEOFFSETFROMPARTS(...)</td><td class="px-3 py-1.5">Build datetimeoffset</td><td class="px-3 py-1.5 font-mono">...,hour_offset,min_offset,prec</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">ISDATE(expr)</td><td class="px-3 py-1.5">Valid date? (returns 0/1)</td><td class="px-3 py-1.5 font-mono">ISDATE('2026-02-30') -&gt; 0</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">EOMONTH(date [,n])</td><td class="px-3 py-1.5">Last day of month (&plusmn;n)</td><td class="px-3 py-1.5 font-mono">EOMONTH('2026-04-22') -&gt; 2026-04-30</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 text-sm text-sky-900">
+    <strong>Tip:</strong> <code>ISDATE</code> only understands certain types/formats and is affected by language/DATEFORMAT settings.
+    On 2012+, prefer <code>TRY_CONVERT(DATE, expr)</code> or <code>TRY_CAST</code> which return <code>NULL</code> on failure and support all target types.
+  </div>
+</section>
+
+<!-- ============ CONVERT & FORMAT ============ -->
+<section id="convert">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">6. Converting &amp; formatting</h2>
+  <p class="text-slate-700 mb-5"><code>CAST</code> (ANSI), <code>CONVERT</code> (style codes), <code>FORMAT</code> (.NET patterns), and the safe <code>TRY_*</code> / <code>PARSE</code> variants.</p>
+
+  <div class="grid md:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-teal-700">CAST</h4>
+      <p class="text-sm text-slate-600 mt-1">ANSI, portable, no formatting. <strong>Default choice.</strong></p>
+    </div>
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-teal-700">CONVERT</h4>
+      <p class="text-sm text-slate-600 mt-1">SQL Server only. Fast. Has <strong>style codes</strong> for dates. Use when you need a specific style.</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4 shadow-sm">
+      <h4 class="font-bold text-teal-700">FORMAT</h4>
+      <p class="text-sm text-slate-600 mt-1">.NET patterns. Most flexible but <strong>slow</strong> (CLR). Display only. <span class="badge bg-amber-100 text-amber-800">2012+</span></p>
+    </div>
+  </div>
+
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="cm">-- CAST vs CONVERT (identical when no style needed):</span>
+<span class="fn">CAST</span>(<span class="fn">GETDATE</span>() <span class="kw">AS</span> <span class="kw">DATE</span>)          <span class="cm">-- 2026-04-23</span>
+<span class="fn">CONVERT</span>(<span class="kw">DATE</span>, <span class="fn">GETDATE</span>())         <span class="cm">-- 2026-04-23</span>
+
+<span class="cm">-- CONVERT style codes (the main reason to use CONVERT):</span>
+<span class="fn">CONVERT</span>(<span class="kw">VARCHAR</span>, <span class="fn">GETDATE</span>(), <span class="nu">101</span>)  <span class="cm">-- 04/23/2026  (US)</span>
+<span class="fn">CONVERT</span>(<span class="kw">VARCHAR</span>, <span class="fn">GETDATE</span>(), <span class="nu">103</span>)  <span class="cm">-- 23/04/2026  (UK)</span>
+<span class="fn">CONVERT</span>(<span class="kw">VARCHAR</span>, <span class="fn">GETDATE</span>(), <span class="nu">112</span>)  <span class="cm">-- 20260423    (ISO compact)</span>
+<span class="fn">CONVERT</span>(<span class="kw">VARCHAR</span>, <span class="fn">GETDATE</span>(), <span class="nu">120</span>)  <span class="cm">-- 2026-04-23 14:30:45 (ODBC)</span>
+<span class="fn">CONVERT</span>(<span class="kw">VARCHAR</span>, <span class="fn">GETDATE</span>(), <span class="nu">23</span>)   <span class="cm">-- 2026-04-23 (ISO date)</span>
+
+<span class="cm">-- FORMAT (.NET) - flexible but slow:</span>
+<span class="fn">FORMAT</span>(<span class="fn">GETDATE</span>(), <span class="st">'yyyy-MM-dd'</span>)          <span class="cm">-- 2026-04-23</span>
+<span class="fn">FORMAT</span>(<span class="fn">GETDATE</span>(), <span class="st">'dd-MMM-yyyy'</span>)         <span class="cm">-- 23-Apr-2026</span>
+<span class="fn">FORMAT</span>(<span class="fn">GETDATE</span>(), <span class="st">'hh:mm tt'</span>)            <span class="cm">-- 02:30 PM</span></code></pre>
+  </div>
+
+  <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900 mb-4">
+    <strong>FORMAT case sensitivity (huge gotcha):</strong> <code>MM</code> = month, <code>mm</code> = minutes; <code>HH</code> = 24-hour, <code>hh</code> = 12-hour.
+    <code>'yyyy-mm-dd hh:mm'</code> gives you minutes-where-month-should-be and a 12-hour clock. Always <code>'yyyy-MM-dd HH:mm'</code>.
+  </div>
+
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="cm">-- Safe conversions: return NULL instead of erroring  (2012+)</span>
+<span class="fn">TRY_CAST</span>(<span class="st">'not a date'</span> <span class="kw">AS</span> <span class="kw">DATE</span>)        <span class="cm">-- NULL (no error)</span>
+<span class="fn">TRY_CONVERT</span>(<span class="kw">DATE</span>, <span class="st">'2026-13-40'</span>)         <span class="cm">-- NULL</span>
+
+<span class="cm">-- PARSE / TRY_PARSE: culture-aware string -&gt; date (slow, CLR)</span>
+<span class="fn">PARSE</span>(<span class="st">'23/04/2026'</span> <span class="kw">AS</span> <span class="kw">DATE</span> <span class="kw">USING</span> <span class="st">'en-GB'</span>)   <span class="cm">-- 2026-04-23</span>
+<span class="fn">TRY_PARSE</span>(<span class="st">'April 23, 2026'</span> <span class="kw">AS</span> <span class="kw">DATE</span> <span class="kw">USING</span> <span class="st">'en-US'</span>)</code></pre>
+  </div>
+
+  <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 text-sm text-sky-900">
+    <strong>Force decimal division</strong> (common interview trap): <code>CAST(COUNT(*) AS DECIMAL(10,2)) / total</code> or <code>1.0 * COUNT(*) / total</code>.
+    Without it, <code>1 / 2 = 0</code> (integer division).
+  </div>
+</section>
+
+<!-- ============ TIME ZONES ============ -->
+<section id="timezone">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">7. Time zones</h2>
+  <p class="text-slate-700 mb-5"><code>AT TIME ZONE</code>, <code>SWITCHOFFSET</code>, and <code>TODATETIMEOFFSET</code> - the trio the reference didn't cover but interviewers love.</p>
+
+  <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm mb-4">
+<pre><code><span class="cm">-- AT TIME ZONE: attach or convert time zones  (2016+)</span>
+<span class="cm">-- 1) Treat a naive datetime as being in a zone (attaches offset):</span>
+<span class="st">'2026-04-23 14:00'</span> <span class="kw">AT TIME ZONE</span> <span class="st">'Eastern Standard Time'</span>
+<span class="cm">--   -&gt; 2026-04-23 14:00:00 -04:00</span>
+
+<span class="cm">-- 2) Convert one zone to another (chain two AT TIME ZONE):</span>
+<span class="fn">SYSDATETIMEOFFSET</span>() <span class="kw">AT TIME ZONE</span> <span class="st">'UTC'</span>
+                      <span class="kw">AT TIME ZONE</span> <span class="st">'India Standard Time'</span>
+
+<span class="cm">-- Store UTC, display local:</span>
+<span class="kw">SELECT</span> OrderDate <span class="kw">AT TIME ZONE</span> <span class="st">'UTC'</span> <span class="kw">AT TIME ZONE</span> <span class="st">'Pacific Standard Time'</span>
+<span class="kw">FROM</span> Orders;
+
+<span class="cm">-- SWITCHOFFSET: same instant, different offset (keeps the point in time)</span>
+<span class="fn">SWITCHOFFSET</span>(<span class="fn">SYSDATETIMEOFFSET</span>(), <span class="st">'+05:30'</span>)
+
+<span class="cm">-- TODATETIMEOFFSET: attach an offset to a naive datetime (does NOT convert)</span>
+<span class="fn">TODATETIMEOFFSET</span>(<span class="st">'2026-04-23 14:00'</span>, <span class="st">'-05:00'</span>)</code></pre>
+  </div>
+  <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
+    <strong>SWITCHOFFSET vs TODATETIMEOFFSET:</strong> SWITCHOFFSET keeps the same <em>instant</em> and recomputes the wall-clock time for the new offset.
+    TODATETIMEOFFSET just <em>labels</em> a naive value with an offset (no conversion). Mixing them up silently shifts your times.
+  </div>
+</section>
+
+<!-- ============ UNITS REFERENCE ============ -->
+<section id="units">
+  <h2 class="text-3xl font-bold text-slate-900 mb-2">8. DATEPART units reference</h2>
+  <p class="text-slate-700 mb-4">Valid in <code>DATEPART</code>, <code>DATENAME</code>, <code>DATEADD</code>, <code>DATEDIFF</code>, <code>DATETRUNC</code>, <code>DATE_BUCKET</code>.</p>
+  <div class="overflow-x-auto tbl-scroll">
+    <table class="w-full text-sm border border-slate-200 rounded-lg bg-white">
+      <thead class="bg-teal-700 text-white"><tr>
+        <th class="px-3 py-2 text-left">Unit</th><th class="px-3 py-2 text-left">Abbreviations</th><th class="px-3 py-2 text-left">Example value</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="px-3 py-1.5 font-mono">YEAR</td><td class="px-3 py-1.5 font-mono">yy, yyyy</td><td class="px-3 py-1.5">2026</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">QUARTER</td><td class="px-3 py-1.5 font-mono">qq, q</td><td class="px-3 py-1.5">2</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">MONTH</td><td class="px-3 py-1.5 font-mono">mm, m</td><td class="px-3 py-1.5">4</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">DAYOFYEAR</td><td class="px-3 py-1.5 font-mono">dy, y</td><td class="px-3 py-1.5">113</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">DAY</td><td class="px-3 py-1.5 font-mono">dd, d</td><td class="px-3 py-1.5">23</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">WEEK</td><td class="px-3 py-1.5 font-mono">wk, ww</td><td class="px-3 py-1.5">17</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">ISO_WEEK</td><td class="px-3 py-1.5 font-mono">isowk, isoww</td><td class="px-3 py-1.5">17 (ISO 8601)</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">WEEKDAY</td><td class="px-3 py-1.5 font-mono">dw</td><td class="px-3 py-1.5">5 (Sun=1 by default)</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">HOUR</td><td class="px-3 py-1.5 font-mono">hh</td><td class="px-3 py-1.5">14</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">MINUTE</td><td class="px-3 py-1.5 font-mono">mi, n</td><td class="px-3 py-1.5">35</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">SECOND</td><td class="px-3 py-1.5 font-mono">ss, s</td><td class="px-3 py-1.5">47</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">MILLISECOND</td><td class="px-3 py-1.5 font-mono">ms</td><td class="px-3 py-1.5">123</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">MICROSECOND / NANOSECOND</td><td class="px-3 py-1.5 font-mono">mcs / ns</td><td class="px-3 py-1.5">high precision</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">TZOFFSET</td><td class="px-3 py-1.5 font-mono">tz</td><td class="px-3 py-1.5">-300 (minutes)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="text-sm text-slate-600 mt-3"><strong>Note:</strong> <code>WEEKDAY</code> numbering depends on <code>SET DATEFIRST</code> (default Sunday=1 in US English). Use <code>ISO_WEEK</code> for stable, locale-independent week numbers.</p>
+</section>
+
+<!-- ============ GOTCHAS ============ -->
+<section id="gotchas">
+  <h2 class="text-3xl font-bold text-slate-900 mb-4">9. Master gotchas</h2>
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
+    <div class="overflow-x-auto tbl-scroll">
+      <table class="w-full text-sm border border-amber-200 rounded-lg bg-white">
+        <thead class="bg-amber-100 text-amber-900"><tr>
+          <th class="px-3 py-2 text-left w-1/3">Gotcha</th><th class="px-3 py-2 text-left">What happens / how to avoid it</th></tr></thead>
+        <tbody class="divide-y divide-amber-100 text-slate-700">
+          <tr><td class="px-3 py-2 font-semibold">DATEDIFF counts boundary crossings</td><td class="px-3 py-2">Dec 31 -&gt; Jan 1 = 1 YEAR even though 1 day apart. Don't use it to measure "full" periods without adjusting.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">DATEDIFF argument order</td><td class="px-3 py-2"><code>(part, start, end)</code> = end - start. Swapping flips the sign.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">DATEADD(MONTH,...) clamps</td><td class="px-3 py-2"><code>DATEADD(MONTH, 1, '2026-01-31')</code> = 2026-02-28, not 03-03. Great for month-end, surprising otherwise.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">DAY() resets across months</td><td class="px-3 py-2"><code>DAY</code> returns day-of-month (1-31). Jan 31 -&gt; Feb 1 is 31 then 1. Never use it for date arithmetic; use DATEADD/DATEDIFF.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">FORMAT is slow (CLR)</td><td class="px-3 py-2">Avoid in WHERE/JOIN/large sets. Use CONVERT for performance; FORMAT for final display only.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">FORMAT case: MM vs mm, HH vs hh</td><td class="px-3 py-2">MM=month, mm=minutes, HH=24hr, hh=12hr. Getting this wrong silently produces garbage output.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">Functions on columns kill indexes</td><td class="px-3 py-2"><code>WHERE YEAR(OrderDate)=2026</code> is non-SARGable (no index seek). Prefer a range: <code>OrderDate &gt;= '2026-01-01' AND OrderDate &lt; '2027-01-01'</code>.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">BETWEEN on datetime misses the last day</td><td class="px-3 py-2"><code>BETWEEN '2026-01-01' AND '2026-01-31'</code> excludes times after midnight on the 31st. Use <code>&lt; '2026-02-01'</code> instead.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">Ambiguous string literals</td><td class="px-3 py-2"><code>'04/05/2026'</code> depends on DATEFORMAT/language. Always use ISO <code>'2026-04-05'</code> or <code>'20260405'</code> for unambiguous, culture-safe literals.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">DATETRUNC / DATE_BUCKET need 2022+</td><td class="px-3 py-2">On older servers use <code>DATEADD(MONTH, DATEDIFF(MONTH, 0, d), 0)</code> for month truncation.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">CURRENT_DATE needs 2025+</td><td class="px-3 py-2">Use <code>CAST(GETDATE() AS DATE)</code> for date-only on older versions.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">DATEDIFF INT overflow</td><td class="px-3 py-2"><code>DATEDIFF(SECOND, veryOld, now)</code> can overflow INT (~68 yrs). Use <code>DATEDIFF_BIG</code>.</td></tr>
+          <tr><td class="px-3 py-2 font-semibold">WEEKDAY depends on SET DATEFIRST</td><td class="px-3 py-2">Week-day numbers shift with server/session settings. Use ISO_WEEK or DATENAME for stability.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ INTERVIEW TIPS ============ -->
+<section id="interview">
+  <h2 class="text-3xl font-bold text-slate-900 mb-4">10. Interview tips &amp; decision tree</h2>
+  <div class="grid md:grid-cols-2 gap-6">
+    <div class="bg-white border rounded-xl p-5 shadow-sm">
+      <h3 class="font-bold text-teal-800 mb-2">Quick-fire tips</h3>
+      <ul class="list-disc pl-5 space-y-1.5 text-sm text-slate-700">
+        <li>No <code>DATETRUNC</code> before 2022 - use <code>DATEADD(MONTH, DATEDIFF(MONTH, 0, d), 0)</code>.</li>
+        <li>No <code>CURRENT_DATE</code> before 2025 - use <code>CAST(GETDATE() AS DATE)</code>.</li>
+        <li><code>DATEDIFF</code> counts boundary crossings, not full intervals.</li>
+        <li><code>EOMONTH</code> for month-end - avoids 28/29/30/31 handling.</li>
+        <li><code>DATENAME</code> only for MONTH/WEEKDAY; else it's just a number-as-string.</li>
+        <li><code>CAST</code> by default (ANSI); <code>CONVERT</code> for style codes; <code>FORMAT</code> for display only.</li>
+        <li>Keep predicates SARGable - avoid wrapping the column in a function.</li>
+        <li>Mention ANSI vs SQL Server portability - shows awareness.</li>
+      </ul>
+    </div>
+    <div class="bg-slate-900 rounded-xl p-5 overflow-x-auto text-sm">
+<pre><code><span class="cm">FUNCTION DECISION TREE</span>
+
+Need current datetime?
+  -&gt; CURRENT_TIMESTAMP (ANSI) or GETDATE()
+  -&gt; UTC? GETUTCDATE() / SYSUTCDATETIME()
+
+Need to extract a part?
+  -&gt; Need 'April'/'Thursday'? DATENAME()
+  -&gt; Need a number?           DATEPART() (or DAY/MONTH/YEAR)
+
+Add/subtract time?  -&gt; DATEADD(part, n, date)
+Difference?         -&gt; DATEDIFF(part, start, end)
+  -&gt; huge range?    -&gt; DATEDIFF_BIG(...)
+
+Group by time bucket?
+  -&gt; Fixed 1-unit?  DATETRUNC(part, date)     (2022+)
+  -&gt; Custom N-unit? DATE_BUCKET(part, N, date)(2022+)
+
+Last day of month? -&gt; EOMONTH(date)
+
+Type conversion?
+  -&gt; No formatting? CAST (ANSI)
+  -&gt; Style code?    CONVERT
+  -&gt; Custom pattern?FORMAT (slow, display only)
+  -&gt; Might fail?    TRY_CAST / TRY_CONVERT
+
+Time zones?
+  -&gt; Convert zones? AT TIME ZONE
+  -&gt; Same instant?  SWITCHOFFSET
+  -&gt; Label offset?  TODATETIMEOFFSET</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CHEAT SHEET ============ -->
+<section id="cheatsheet">
+  <h2 class="text-3xl font-bold text-slate-900 mb-4">Cheat sheet</h2>
+  <div class="overflow-x-auto tbl-scroll">
+    <table class="w-full text-sm border border-slate-200 rounded-lg bg-white">
+      <thead class="bg-teal-700 text-white"><tr>
+        <th class="px-3 py-2 text-left">Function</th><th class="px-3 py-2 text-left">Category</th>
+        <th class="px-3 py-2 text-left">Use it for</th><th class="px-3 py-2 text-left">Version</th></tr></thead>
+      <tbody class="divide-y divide-slate-100 text-slate-700">
+        <tr><td class="px-3 py-1.5 font-mono">GETDATE / SYSDATETIME</td><td class="px-3 py-1.5">Now</td><td class="px-3 py-1.5">Current local time</td><td class="px-3 py-1.5">All</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">GETUTCDATE / SYSUTCDATETIME</td><td class="px-3 py-1.5">Now</td><td class="px-3 py-1.5">Current UTC time</td><td class="px-3 py-1.5">All</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">DATEPART / DATENAME</td><td class="px-3 py-1.5">Extract</td><td class="px-3 py-1.5">Part as int / as text</td><td class="px-3 py-1.5">All</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">DAY / MONTH / YEAR</td><td class="px-3 py-1.5">Extract</td><td class="px-3 py-1.5">Shortcut ints</td><td class="px-3 py-1.5">All</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">DATEADD</td><td class="px-3 py-1.5">Arithmetic</td><td class="px-3 py-1.5">Add/subtract intervals</td><td class="px-3 py-1.5">All</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">DATEDIFF / DATEDIFF_BIG</td><td class="px-3 py-1.5">Arithmetic</td><td class="px-3 py-1.5">Gap between dates</td><td class="px-3 py-1.5">All / 2016+</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">DATETRUNC</td><td class="px-3 py-1.5">Bucket</td><td class="px-3 py-1.5">Truncate to 1 unit</td><td class="px-3 py-1.5">2022+</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">DATE_BUCKET</td><td class="px-3 py-1.5">Bucket</td><td class="px-3 py-1.5">Custom N-unit buckets</td><td class="px-3 py-1.5">2022+</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">EOMONTH</td><td class="px-3 py-1.5">Helper</td><td class="px-3 py-1.5">Last day of month</td><td class="px-3 py-1.5">2012+</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">*FROMPARTS</td><td class="px-3 py-1.5">Construct</td><td class="px-3 py-1.5">Build date/time from ints</td><td class="px-3 py-1.5">2012+</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">ISDATE</td><td class="px-3 py-1.5">Validate</td><td class="px-3 py-1.5">Is it a valid date? (0/1)</td><td class="px-3 py-1.5">All</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">CAST / CONVERT</td><td class="px-3 py-1.5">Convert</td><td class="px-3 py-1.5">Type change (CONVERT=styles)</td><td class="px-3 py-1.5">All</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">TRY_CAST / TRY_CONVERT</td><td class="px-3 py-1.5">Convert</td><td class="px-3 py-1.5">Safe (NULL on fail)</td><td class="px-3 py-1.5">2012+</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">FORMAT / PARSE</td><td class="px-3 py-1.5">Format</td><td class="px-3 py-1.5">.NET patterns (slow)</td><td class="px-3 py-1.5">2012+</td></tr>
+        <tr><td class="px-3 py-1.5 font-mono">AT TIME ZONE</td><td class="px-3 py-1.5">Time zone</td><td class="px-3 py-1.5">Attach/convert zones</td><td class="px-3 py-1.5">2016+</td></tr>
+        <tr class="bg-slate-50"><td class="px-3 py-1.5 font-mono">SWITCHOFFSET / TODATETIMEOFFSET</td><td class="px-3 py-1.5">Time zone</td><td class="px-3 py-1.5">Offset math / labeling</td><td class="px-3 py-1.5">All</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+
+<footer class="bg-slate-900 text-slate-400 text-sm">
+  <div class="max-w-6xl mx-auto px-6 py-8">
+    <p>SQL Server (T-SQL) Date &amp; Time Functions reference.</p>
+    <p class="mt-1">Base content adapted from luuck25/sql date-functions.md, expanded with UTC/high-precision "now" functions, time-zone functions (AT TIME ZONE, SWITCHOFFSET, TODATETIMEOFFSET), DATEDIFF_BIG, TRY_CAST/TRY_CONVERT/PARSE, the full *FROMPARTS family, SARGability &amp; BETWEEN gotchas, and ISO_WEEK.</p>
+  </div>
+</footer>
+
+</body>
+</html>
